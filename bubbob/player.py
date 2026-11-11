@@ -912,8 +912,11 @@ class BubPlayer(gamesrv.Player):
         setattr(self, dcap[key_name], value)
 
     def wannago(self, dcap):
-        return dcap['left2right'] * cmp(self.getkey(dcap, 'key_right'),
-                                        self.getkey(dcap, 'key_left'))
+        # -1, 0 or 1: the direction of the key pressed last.
+        # (a > b) - (a < b) is what Python 2's cmp(a, b) returned.
+        right = self.getkey(dcap, 'key_right')
+        left = self.getkey(dcap, 'key_left')
+        return dcap['left2right'] * ((right > left) - (right < left))
 
     def turn_single_shot(self, dcap):
         for name in ('key_left', 'key_right'):
