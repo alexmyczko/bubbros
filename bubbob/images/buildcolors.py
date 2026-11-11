@@ -59,10 +59,10 @@ def initpalettelut ():
         v = Palettes[i]
         #if v & 0xff == 0 and (v >> 8) & 0xff == 0x87 and (v >> 16) & 0xff == 0:
         #    print 'FOUND'
-        s = "".join ([chr ((v >> shift) & 0xff) for shift in (0,8,16)])
+        s = bytes ([(v >> shift) & 0xff for shift in (0,8,16)])
         PaletteIndex[s] = i
     # invalidate COLORS, but match the length to the number of alt palettes.
-    COLORS = list(range((len (Palettes) / PALETTESIZE) - 1))
+    COLORS = list(range((len (Palettes) // PALETTESIZE) - 1))
     #print 'COLORS',COLORS
     COLORMAPS = [{} for n in COLORS]
     #print 'COLORMAPS',COLORMAPS
@@ -75,10 +75,10 @@ def loadpalettesets (filename):
     assert ((os.path.getsize (filename) % (PALETTESIZE * 3)) == 0)
     #print os.path.getsize (filename)
     f = open (filename, 'rb')
-    for i in range (os.path.getsize(filename) / (PALETTESIZE * 3)):
+    for i in range (os.path.getsize(filename) // (PALETTESIZE * 3)):
         for j in range (PALETTESIZE):
             tmp = f.read (3)
-            val = ord (tmp[0]) | (ord (tmp[1]) << 8) | (ord (tmp[2]) << 16)
+            val = tmp[0] | (tmp[1] << 8) | (tmp[2] << 16)
             Palettes.append (val)
     #debuggest
     #print len(Palettes)
@@ -122,7 +122,7 @@ usingpalette = 0
 
 def palettepixelmap (r, g, b):
 #    print max(r,g,b)
-    packed = chr(r) + chr(g) + chr(b)
+    packed = bytes((r, g, b))
     try:
         index = PaletteIndex[packed]
         #print 'index %r' % index
@@ -137,20 +137,19 @@ def palettepixelmap (r, g, b):
 
 def ppmbreak (f):
     sig = f.readline ().strip ()
-    assert sig == "P6"
+    assert sig == b"P6"
     while 1:
         line = f.readline ().strip ()
-        if not line.startswith('#'):
+        if not line.startswith(b'#'):
             break
     wh = line.split ()
     w, h = list(map (int, wh))
     sig = f.readline ().strip()
-    assert sig == "255"
+    assert sig == b"255"
     data = f.read ()
     return w, h, data
 
 COLORMAPS = [{} for n in COLORS]
-del n
 
 def paletterotate (imglist, chr=chr, int=int, ord=ord):
     global thispalette
@@ -178,14 +177,14 @@ def paletterotate (imglist, chr=chr, int=int, ord=ord):
                 append (colormap[rgb1])
             else:
 #                print 'HI!'
-                r, g, b = ord(rgb1[0]), ord(rgb1[1]), ord(rgb1[2])
+                r, g, b = rgb1[0], rgb1[1], rgb1[2]
 #                print '%d,%d,%d ->' % (r,g,b)
                 r, g, b = palettepixelmap (r, g, b)
 #                print '%d,%d,%d.' % (r,g,b)
-                newrgb = chr (int (r))+chr (int (g))+chr (int (b))
+                newrgb = bytes ((int (r), int (g), int (b)))
                 append (newrgb)
                 colormap[rgb1] = newrgb
-        imglist.append((gw, gh, ''.join (image)))
+        imglist.append((gw, gh, b''.join (image)))
 
 
 def rotate (imglist, chr=chr, int=int, ord=ord):
@@ -212,11 +211,11 @@ def rotate (imglist, chr=chr, int=int, ord=ord):
             elif rgb1 in colormap:
                 append (colormap[rgb1])
             else:
-                r, g, b = fn(ord(rgb1[0]), ord(rgb1[1]), ord(rgb1[2]))
-                newrgb = chr(int(r))+chr(int(g))+chr(int(b))
+                r, g, b = fn(rgb1[0], rgb1[1], rgb1[2])
+                newrgb = bytes((int(r), int(g), int(b)))
                 append(newrgb)
                 colormap[rgb1] = newrgb
-        imglist.append((bw, bh, ''.join(image)))
+        imglist.append((bw, bh, b''.join(image)))
 
 def writeout (imglist, namepattern, paletted = False):
     start = 2
@@ -226,9 +225,7 @@ def writeout (imglist, namepattern, paletted = False):
         w, h, data = imglist[i]
         fn = namepattern % i
         f = open (fn, 'wb')
-        print('P6', file=f)
-        print(w, h, file=f)
-        print(255, file=f)
+        f.write (b'P6\n%d %d\n255\n' % (w, h))
         f.write (data)
         f.close ()
 
