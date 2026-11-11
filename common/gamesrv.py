@@ -254,6 +254,10 @@ class Music(DataChunk):
 
 
 def clearsprites():
+  # the sprites are gone from the screen: mark them so, so that a later
+  # kill() of one of them does nothing
+  for s in list(sprites_by_n.values()):
+    s.alive = 0
   sprites_by_n.clear()
   sprites[:] = [b'']
 
