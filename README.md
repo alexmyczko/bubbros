@@ -61,7 +61,8 @@ To run your own meta-server:
 
     python3 metaserver/metaserver.py [--port 8055] [--http 8050]
 
-It needs these ports open: TCP and UDP 8055, TCP 8050.
+It needs these ports open: TCP and UDP 8055, TCP 8050. To run it as a
+service, see `metaserver/bubbros-metaserver.service`.
 
 ## Tests
 
