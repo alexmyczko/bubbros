@@ -164,7 +164,9 @@ def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
             if len(hostsend) == len(hostrecv) == tries:
                 ping = min([t2-t1 for t1, t2 in zip(hostsend, hostrecv)])
         servers[host, port] = (servers[host, port], ping)
-    sys.setcheckinterval(4096)
+    # Python 2 had sys.setcheckinterval(4096) here, the normal thread
+    # switching setting (see set_fast_thread_switching in metaclient.py)
+    sys.setswitchinterval(0.005)
     return servers
 
 # ____________________________________________________________
