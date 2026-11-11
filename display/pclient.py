@@ -24,7 +24,7 @@ def loadpixmap(dpy, data, colorkey=None):
     if colorkey is None:
         colorkey = -1
     elif colorkey < 0:
-        r, g, b = struct.unpack("BBB", self.data[:3])
+        r, g, b = struct.unpack("BBB", data[:3])
         colorkey = b | (g<<8) | (r<<16)
     return dpy.pixmap(w, h, data, colorkey)
 

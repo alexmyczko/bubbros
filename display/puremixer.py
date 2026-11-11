@@ -111,7 +111,7 @@ class PureMixer:
 
 def byteswap(data, byte):
     if byte == 1:
-        return
+        return data
     if byte == 2:
         typecode = 'h'
     elif byte == 4:
