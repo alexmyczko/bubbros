@@ -20,25 +20,31 @@ class Display:
         # Initialize pygame
         pygame.init()
 
-        # Set the display mode.  Full screen used to ask for a 656x400
-        # screen mode, which current monitors rarely have and Wayland
-        # compositors never give to applications: the window stayed a
-        # window, or filled the screen with the playfield unscaled in a
-        # corner.  pygame 2's SCALED fills the screen at its own
-        # resolution, scales the playfield keeping its proportions, and
-        # maps the mouse back to playfield coordinates.  Some Wayland
-        # setups ignore FULLSCREEN at window creation, so switch the
-        # window afterwards if needed.
+        # Set the display mode.  In full screen, pygame 2's SCALED fills
+        # the screen at the screen's own resolution and scales the 656x400
+        # playfield, keeping its proportions; asking for a 656x400 screen
+        # mode, as before, left it unscaled in a corner, and Wayland
+        # compositors do not change screen modes at all.  In a window,
+        # SCALED only scales by whole multiples, so a maximized window
+        # showed the playfield unscaled: the window is resizable and
+        # flip() scales the playfield to it.
         scaled = getattr(pygame, 'SCALED', 0)
         winstyle = HWSURFACE
         if self.use_fullscreen:
             winstyle |= FULLSCREEN | scaled
+        else:
+            winstyle |= RESIZABLE
         bestdepth = pygame.display.mode_ok((width, height), winstyle, 32)
         self.screen = pygame.display.set_mode((width, height),
                                               winstyle, bestdepth)
-        if (self.use_fullscreen and scaled and
-                not pygame.display.is_fullscreen()):
-            pygame.display.toggle_fullscreen()
+        if self.use_fullscreen and scaled:
+            # some Wayland setups ignore FULLSCREEN at window creation
+            if not pygame.display.is_fullscreen():
+                pygame.display.toggle_fullscreen()
+        self.size = (width, height)
+        self.winstyle = winstyle
+        self.view = (1.0, 0, 0)     # scale and offset of the playfield
+        self.scaledsize = None
         self.offscreen = pygame.Surface((width, height))
         #decorate the game window
         pygame.display.set_caption(title)
@@ -50,6 +56,17 @@ class Display:
         EVENT_HANDLERS[KEYDOWN] = self.keydown_handler
         EVENT_HANDLERS[KEYUP] = self.keyup_handler
         EVENT_HANDLERS[MOUSEBUTTONDOWN] = self.mousebuttondown_handler
+        EVENT_HANDLERS[VIDEORESIZE] = self.videoresize_handler
+
+    def videoresize_handler(self, e):
+        # pygame 2 resizes the display surface by itself; pygame 1 needs
+        # a new set_mode()
+        if pygame.display.get_surface().get_size() != tuple(e.size):
+            pygame.display.set_mode(e.size, self.winstyle)
+
+    def playfield_xy(self, pos):
+        f, ox, oy = self.view
+        return (int((pos[0] - ox) / f), int((pos[1] - oy) / f))
 
     def keydown_handler(self, e):
         if e.key == K_ESCAPE and self.use_fullscreen:
@@ -64,7 +81,7 @@ class Display:
 
     def mousebuttondown_handler(self, e):
         self.showmouse(1)
-        self.events_mouse.append(e.pos)
+        self.events_mouse.append(self.playfield_xy(e.pos))
         del self.events_mouse[:-8]
 
     def pixmap(self, w, h, data, colorkey=-1):
@@ -112,7 +129,25 @@ class Display:
             self.offscreen.blit(bitmap, (x, y))
 
     def flip(self):
-        self.screen.blit(self.offscreen, (0, 0))
+        screen = pygame.display.get_surface()
+        if screen.get_size() == self.size:
+            screen.blit(self.offscreen, (0, 0))
+            self.view = (1.0, 0, 0)
+            self.scaledsize = None
+        else:
+            # the window was resized or maximized: scale the playfield to
+            # it, keeping its proportions, centred, black bars around it
+            sw, sh = screen.get_size()
+            w, h = self.size
+            f = min(sw / w, sh / h)
+            tw, th = max(1, int(w * f)), max(1, int(h * f))
+            ox, oy = (sw - tw) // 2, (sh - th) // 2
+            if self.scaledsize != (sw, sh):
+                screen.fill((0, 0, 0))
+                self.scaledsize = (sw, sh)
+            screen.blit(pygame.transform.smoothscale(self.offscreen,
+                                                     (tw, th)), (ox, oy))
+            self.view = (f, ox, oy)
         pygame.display.flip()
         events_dispatch()
 
@@ -135,7 +170,7 @@ class Display:
                 self.events_key.append((e.key, KeyReleased))
                 del self.events_key[:-16]
             elif e.type == MOUSEBUTTONDOWN:
-                self.events_mouse.append(e.pos)
+                self.events_mouse.append(self.playfield_xy(e.pos))
                 del self.events_mouse[:-8]
             elif e.type == ENDMUSICEVENT:
                 self.next_music()
@@ -149,7 +184,7 @@ class Display:
         return events
 
     def pointermotion(self):
-        position = pygame.mouse.get_pos()
+        position = self.playfield_xy(pygame.mouse.get_pos())
         if position != self.prevposition:
             self.showmouse(1)
             self.prevposition = position
