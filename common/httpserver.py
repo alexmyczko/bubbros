@@ -105,6 +105,9 @@ class HTTPRequestError(Exception):
     pass
 
 class MiniHandler(SimpleHTTPRequestHandler):
+    # a connection that sends nothing must not hang the single-threaded
+    # server (the game loop, or the meta-server) for ever
+    timeout = 10
 
     def send_head(self, query=''):
         addr, host, path, query1, fragment = urllib.parse.urlsplit(self.path)
@@ -137,14 +140,12 @@ class MiniHandler(SimpleHTTPRequestHandler):
         except HTTPRequestError as e:
             self.send_error(500, str(e))
             return None
-        except:
-            f = StringIO()
+        except Exception:
+            # the details go to the log, not to whoever made the request
             import traceback
-            traceback.print_exc(file=f)
-            data = htmlquote(f.getvalue())
-            data = data.replace('\n', '<br>\n')
+            traceback.print_exc()
             self.send_error(500)
-            return StringIO('<hr><p>'+data+'</p>')
+            return None
         if ctype is None:
             ctype = self.guess_type(self.translate_path(self.path))
         elif f is None:
