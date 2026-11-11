@@ -20,13 +20,25 @@ class Display:
         # Initialize pygame
         pygame.init()
 
-        # Set the display mode
+        # Set the display mode.  Full screen used to ask for a 656x400
+        # screen mode, which current monitors rarely have and Wayland
+        # compositors never give to applications: the window stayed a
+        # window, or filled the screen with the playfield unscaled in a
+        # corner.  pygame 2's SCALED fills the screen at its own
+        # resolution, scales the playfield keeping its proportions, and
+        # maps the mouse back to playfield coordinates.  Some Wayland
+        # setups ignore FULLSCREEN at window creation, so switch the
+        # window afterwards if needed.
+        scaled = getattr(pygame, 'SCALED', 0)
         winstyle = HWSURFACE
         if self.use_fullscreen:
-            winstyle |= FULLSCREEN
+            winstyle |= FULLSCREEN | scaled
         bestdepth = pygame.display.mode_ok((width, height), winstyle, 32)
         self.screen = pygame.display.set_mode((width, height),
                                               winstyle, bestdepth)
+        if (self.use_fullscreen and scaled and
+                not pygame.display.is_fullscreen()):
+            pygame.display.toggle_fullscreen()
         self.offscreen = pygame.Surface((width, height))
         #decorate the game window
         pygame.display.set_caption(title)
