@@ -25,7 +25,15 @@ def connect(failure=[]):
         print('connected.', file=sys.stderr)
     return s
 
-sys.setcheckinterval(4096)
+# Python 2 tuned thread switching with sys.setcheckinterval(): 4096
+# bytecodes normally (the game loop runs undisturbed), 64 while the
+# helper threads of a connection handshake must answer quickly.  Python 3
+# switches threads by time instead; the default (5 ms) plays the role
+# of the normal setting and 0.5 ms that of the fast one.
+def set_fast_thread_switching(fast):
+    sys.setswitchinterval(0.0005 if fast else 0.005)
+
+set_fast_thread_switching(False)
 
 
 def float2str(f):
@@ -90,15 +98,15 @@ class MetaClientSrv(MessageSocket):
             print('version tag:', VERSION_TAG, file=f)
             print(file=f)
             traceback.print_exc(file = f)
-            self.s.sendall(message(MMSG_TRACEBACK, f.getvalue()))
+            self.s.sendall(message(MMSG_TRACEBACK, f.getvalue().encode('utf-8')))
 
     def msg_wakeup(self, origin, *rest):
         if self.lastwakeup is None or time.time()-self.lastwakeup > 4.0:
             def fastresponses(wakeup):
-                sys.setcheckinterval(64)
+                set_fast_thread_switching(True)
                 time.sleep(12.01)
                 if self.lastwakeup == wakeup:
-                    sys.setcheckinterval(4096)
+                    set_fast_thread_switching(False)
                     self.synsockets.clear()
             import _thread
             self.lastwakeup = time.time()
@@ -106,7 +114,7 @@ class MetaClientSrv(MessageSocket):
 
     def msg_connect(self, origin, port, *rest):
         def connect(origin, port):
-            host, _ = origin.split(':')
+            host, _ = origin.decode('ascii').split(':')
             addr = host, port
             s = socket(AF_INET, SOCK_STREAM)
             print('backconnecting to', addr, file=sys.stderr)
@@ -121,14 +129,14 @@ class MetaClientSrv(MessageSocket):
 
     def msg_udp_conn(self, origin, secret, port, *rest):
         def connect(origin, secret, port):
-            host, _ = origin.split(':')
+            host, _ = origin.decode('ascii').split(':')
             addr = host, port
             s = socket(AF_INET, SOCK_DGRAM)
             print('udp connecting to', addr, file=sys.stderr)
             s.connect(addr)
             mysecret = random.randrange(0, 65536)
-            packet = ('B' + chr(  secret & 0xFF) + chr(  secret >> 8)
-                          + chr(mysecret & 0xFF) + chr(mysecret >> 8))
+            packet = b'B' + bytes([  secret & 0xFF,   secret >> 8,
+                                   mysecret & 0xFF, mysecret >> 8])
             from socketoverudp import SocketOverUdp
             from socketoverudp import SOU_RANGE_START, SOU_RANGE_STOP
             for i in range(5):
@@ -140,7 +148,7 @@ class MetaClientSrv(MessageSocket):
                     try:
                         inbuf = s.recv(SocketOverUdp.PACKETSIZE)
                     except error:
-                        inbuf = ''
+                        inbuf = b''
                         # try again?
                         iwtd, owtd, ewtd = select([s], [], [], 0.35)
                         if s in iwtd:
@@ -150,7 +158,7 @@ class MetaClientSrv(MessageSocket):
                                 pass
                     #print 'got', repr(inbuf)
                     if (inbuf and
-                        SOU_RANGE_START <= ord(inbuf[0]) < SOU_RANGE_STOP):
+                        SOU_RANGE_START <= inbuf[0] < SOU_RANGE_STOP):
                         break
             else:
                 print('udp connecting: no answer, giving up', file=sys.stderr)
@@ -158,7 +166,7 @@ class MetaClientSrv(MessageSocket):
             sock = SocketOverUdp(s, (mysecret, secret))
             data = sock._decode(inbuf)
             #print 'decoded as', repr(data)
-            expected = '[bnb c->s]' + packet[3:5]
+            expected = b'[bnb c->s]' + packet[3:5]
             while len(data) < len(expected) + 2:
                 #print 'waiting for more'
                 iwtd, owtd, ewtd = select([sock], [], [], 5.0)
@@ -171,7 +179,7 @@ class MetaClientSrv(MessageSocket):
             if data[:-2] != expected:
                 print('udp connecting: bad data', file=sys.stderr)
                 return
-            sock.sendall('[bnb s->c]' + data[-2:])
+            sock.sendall(b'[bnb s->c]' + data[-2:])
             sock.flush()
             #print 'waiting for the last dot...'
             while 1:
@@ -182,7 +190,7 @@ class MetaClientSrv(MessageSocket):
                 data = sock.recv(200)
                 if data:
                     break
-            if data != '^':
+            if data != b'^':
                 print('udp connecting: bad data', file=sys.stderr)
                 return
             #print 'done!'
@@ -194,7 +202,8 @@ class MetaClientSrv(MessageSocket):
     def msg_ping(self, origin, *rest):
         # ping time1  -->  pong time2 time1
         self.s.sendall(message(MMSG_ROUTE, origin,
-                               RMSG_PONG, float2str(time.time()), *rest))
+                               RMSG_PONG, float2str(time.time()).encode('ascii'),
+                               *rest))
 
     def msg_sync(self, origin, clientport, time3, time2, time1, *rest):
         time4 = time.time()
@@ -207,7 +216,7 @@ class MetaClientSrv(MessageSocket):
         doubleping = (str2float(time3)-str2float(time1)) + (time4-str2float(time2))
         connecttime = time4 + doubleping / 4.0
         def connect(origin, port, connecttime, s):
-            host, _ = origin.split(':')
+            host, _ = origin.decode('ascii').split(':')
             addr = host, port
             delay = connecttime - time.time()
             #print 'sleep(%r)' % delay
@@ -292,7 +301,7 @@ class MetaClientCli:
         print('Trying to connect to', self.serverkey, file=sys.stderr)
         self.ev = Event()
         self.ev2 = Event()
-        self.buffer = ""
+        self.buffer = b""
         self.sendlock = _thread.allocate_lock()
         self.recvlock = _thread.allocate_lock()
         self.inputmsgqueue = []
@@ -315,7 +324,7 @@ class MetaClientCli:
         return self.resultsocket
 
     def done(self):
-        sys.setcheckinterval(4096)
+        set_fast_thread_switching(False)
 
     def bipbip(self):
         while self.resultsocket is None:
@@ -390,7 +399,8 @@ class MetaClientCli:
                     s.bind(('', INADDR_ANY))
                     _, port = s.getsockname()
                     self.socketcache[port] = s
-                    self.routemsg(RMSG_SYNC, port, float2str(now), *msg[2:])
+                    self.routemsg(RMSG_SYNC, port, float2str(now).encode('ascii'),
+                                  *msg[2:])
 
     def sendmsg(self, data):
         self.sendlock.acquire()
@@ -400,7 +410,7 @@ class MetaClientCli:
             self.sendlock.release()
 
     def routemsg(self, *rest):
-        self.sendmsg(message(MMSG_ROUTE, self.serverkey, *rest))
+        self.sendmsg(message(MMSG_ROUTE, self.serverkey.encode('ascii'), *rest))
 
     def _readnextmsg(self, blocking):
         self.recvlock.acquire()
@@ -410,9 +420,10 @@ class MetaClientCli:
                 if msg is not None:
                     if msg[0] == RMSG_UDP_ADDR:
                         if len(msg) > 2:
-                            self.gotudpport = msg[1], int(msg[2])
+                            self.gotudpport = msg[1].decode('ascii'), int(msg[2])
                         continue
-                    if msg[0] == RMSG_NO_HOST and msg[1] == self.serverkey:
+                    if (msg[0] == RMSG_NO_HOST and
+                            msg[1] == self.serverkey.encode('ascii')):
                         print(('*** server %r is not registered'
                                              ' on the meta-server' % (msg[1],)), file=sys.stderr)
                         self.fatalerror = True
@@ -450,12 +461,12 @@ class MetaClientCli:
 
     def send_ping(self):
         sys.stderr.write('. ')
-        self.routemsg(RMSG_PING, float2str(time.time()))
+        self.routemsg(RMSG_PING, float2str(time.time()).encode('ascii'))
 
     def try_synconnect(self, origin, remoteport, localport, *rest):
         sys.stderr.write('+ ')
         s = self.socketcache[localport]
-        remotehost, _ = origin.split(':')
+        remotehost, _ = origin.decode('ascii').split(':')
         remoteaddr = remotehost, remoteport
         try:
             s.connect(remoteaddr)
@@ -483,7 +494,7 @@ class MetaClientCli:
                 host = PORTS['sendudpto']
         secret = originalsecret = random.randrange(0, 65536)
         self.routemsg(RMSG_UDP_CONN, secret, port)
-        secret = 'B' + chr(secret & 0xFF) + chr(secret >> 8)
+        secret = b'B' + bytes([secret & 0xFF, secret >> 8])
         while True:
             iwtd, owtd, ewtd = select([s], [], [], 2.94)
             if s not in iwtd:
@@ -493,10 +504,10 @@ class MetaClientCli:
                 break
         s.connect(addr)
         #print 'got', repr(packet)
-        remotesecret = ord(packet[3]) | (ord(packet[4]) << 8)
+        remotesecret = packet[3] | (packet[4] << 8)
         secret = random.randrange(0, 65536)
-        secret = chr(secret & 0xFF) + chr(secret >> 8)
-        packet = '[bnb c->s]' + packet[3:5] + secret
+        secret = bytes([secret & 0xFF, secret >> 8])
+        packet = b'[bnb c->s]' + packet[3:5] + secret
         for name in ('*udpsock*', 'CLIENT'):
             if name in PORTS:
                 del PORTS[name]
@@ -505,8 +516,8 @@ class MetaClientCli:
         #print 'sending', repr(packet)
         sock.sendall(packet)
         sock.flush()
-        data = ''
-        expected = '[bnb s->c]' + secret
+        data = b''
+        expected = b'[bnb s->c]' + secret
         while len(data) < len(expected):
             #print 'waiting'
             iwtd, owtd, ewtd = select([sock], [], [], 2.5)
@@ -519,7 +530,7 @@ class MetaClientCli:
         if data != expected:
             print('bad udp data from', addr, file=sys.stderr)
         else:
-            sock.sendall('^')
+            sock.sendall(b'^')
             sock.flush()
             print('udp connexion handshake succeeded')
             self.resultsocket = sock
@@ -528,7 +539,7 @@ class MetaClientCli:
         try:
             s = socket(AF_INET, SOCK_DGRAM)
             s.bind(('', INADDR_ANY))
-            randomdata = hex(random.randrange(0, sys.maxsize))
+            randomdata = hex(random.randrange(0, sys.maxsize)).encode('ascii')
             for i in range(5):
                 s.sendto(randomdata, METASERVER_UDP)
                 time.sleep(0.05)
@@ -560,7 +571,7 @@ def print_server_list():
     s = connect()
     if s is not None:
         s.sendall(message(MMSG_LIST))
-        buffer = ""
+        buffer = b""
         while decodemessage(buffer)[0] is None:
             buffer += s.recv(8192)
         s.close()
@@ -588,8 +599,8 @@ def print_server_list():
                         print(addr)
                 value = decodedict(value)
                 print(' %-25s | %-30s | %s' % (
-                    key, value.get('desc', '<no description>'),
-                    value.get('extradesc', '')))
+                    key, totext(value.get('desc', '<no description>')),
+                    totext(value.get('extradesc', ''))))
             print()
 
 if __name__ == '__main__':
