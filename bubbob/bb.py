@@ -52,6 +52,7 @@ class BubBobGame(gamesrv.Game):
         self.extralife  = extralife
         self.autoreset  = autoreset
         self.metaserver = metaserver
+        self.metastatus = None     # 'listed', 'unreachable' or 'unset'
         self.f_monsters = monsters
         self.updatemetaserver()
         levelsname, ext = os.path.splitext(os.path.basename(levelfile))
@@ -175,7 +176,15 @@ class BubBobGame(gamesrv.Game):
         if self.metaserver and (self.autoreset or self.End != 'gameover'):
             setuppath('metaserver')
             import metaclient
-            metaclient.meta_register(self)
+            if metaclient.address() is None:
+                if self.metastatus != 'unset':
+                    print('bb.py: not listed: %s' % metaclient.NOT_SET,
+                          file=sys.stderr)
+                self.metastatus = 'unset'
+            elif metaclient.meta_register(self):
+                self.metastatus = 'listed'
+            else:
+                self.metastatus = 'unreachable'
             print('.')
         else:
             try:
@@ -211,7 +220,9 @@ def parse_cmdline(argv):
         print('or:', file=sys.stderr)
         print('  python bb.py [level-file.bin] [-m] [-b#] [-s#] [-l#] [-M#]', file=sys.stderr)
         print('with options:', file=sys.stderr)
-        print('  -m  --metaserver  register the server on the Metaserver so anyone can join', file=sys.stderr)
+        print('  -m  --metaserver  list the server on the Internet server list (set it', file=sys.stderr)
+        print('                    with BUBBROS_METASERVER=host[:port[:httpport]] or on', file=sys.stderr)
+        print('                    the Options page)', file=sys.stderr)
         print('  -b#  --begin #    start at board number # (default 1)', file=sys.stderr)
         print('       --start #    synonym for --begin', file=sys.stderr)
         print('       --final #    end at board number # (default 100)', file=sys.stderr)
