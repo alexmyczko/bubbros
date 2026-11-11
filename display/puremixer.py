@@ -13,7 +13,7 @@ class PureMixer:
                        channels=1, byteorder=None):
         """Open the mixer and set its parameters."""
         self.freq = freq
-        self.bytes = bits/8
+        self.bytes = bits//8
         self.signed = signed
         self.channels = channels
         self.byteorder = byteorder or sys.byteorder
@@ -24,7 +24,7 @@ class PureMixer:
     def resample(self, data, freq=44100, bits=8, signed=0,
                              channels=1, byteorder=None):
         "Convert a sample to the mixer's own format."
-        bytes = bits/8
+        bytes = bits//8
         byteorder = byteorder or sys.byteorder
         if (freq, bytes, signed, channels, byteorder) == self.parameters:
             return data
@@ -40,7 +40,7 @@ class PureMixer:
         while channels > self.channels:
             assert channels % 2 == 0
             data = audioop.tomono(data, bytes, 0.5, 0.5)
-            channels /= 2
+            channels //= 2
         # resample to self.freq
         if freq != self.freq:
             data, ignored = audioop.ratecv(data, bytes, channels,
@@ -101,7 +101,7 @@ class PureMixer:
                     mixer_channels.remove(c)
                 except ValueError:
                     pass
-        data += self.queue * ((bufsize - len(data)) / self.bytes)
+        data += self.queue * ((bufsize - len(data)) // self.bytes)
         self.queue = data[-self.bytes:]
         return data
 

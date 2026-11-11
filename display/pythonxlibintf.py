@@ -58,7 +58,7 @@ class Display:
             bitmap_pad = 32
         else:
             bitmap_pad = 16
-        scanline = ((w+bitmap_pad-1) & ~(bitmap_pad-1)) / 8;
+        scanline = ((w+bitmap_pad-1) & ~(bitmap_pad-1)) // 8;
         if colorkey >= 0:
             key = (chr(colorkey >> 16) +
                    chr((colorkey>>8) & 0xFF) +
@@ -95,7 +95,7 @@ class Display:
                         src += 3
                     imgdata.append(long2string(imgline, scanline))
                     maskdata.append(long2string(maskline, scanline))
-                plane /= 2
+                plane //= 2
 
         imgdata = ''.join(imgdata)
         if colorkey >= 0:

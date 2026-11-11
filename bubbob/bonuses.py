@@ -245,7 +245,7 @@ class Parabolic2(Parabolic):
 
     def touched(self, dragon, rect=None):
         if self.points:
-            points(self.x + self.ico.w/2, self.y + self.ico.h/2 - CELL,
+            points(self.x + self.ico.w//2, self.y + self.ico.h//2 - CELL,
                    dragon, self.points)
             self.kill()
 

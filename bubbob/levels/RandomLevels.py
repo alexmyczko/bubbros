@@ -189,7 +189,7 @@ class Shape:
             self.set_gens()
         if self.baseshape == 'R':
             lvl.genwalls.append((RandomLevel.rivers,
-                                 randrange(3,(lvl.WIDTH-4)/4), # the number of rivers
+                                 randrange(3,(lvl.WIDTH-4)//4), # the number of rivers
                                  uniform(0.3, 1.4), # the side stepping threshold
                                  10))                # the max side stepping size
             self.set_gens()
@@ -233,7 +233,7 @@ class Shape:
                                   rng_angle[self.lines]))
         if self.platforms:
             nplat  = dice(2,4,0)
-            if nplat: space  = flat((lvl.HEIGHT-1)/nplat/2,(lvl.HEIGHT-1)/nplat/2-1)
+            if nplat: space  = flat((lvl.HEIGHT-1)//nplat//2,(lvl.HEIGHT-1)//nplat//2-1)
             else:     space = 1
             if self.platholes:
                 nholes = lambda : dice(1,3)

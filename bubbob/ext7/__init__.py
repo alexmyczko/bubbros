@@ -15,7 +15,7 @@ from ext6 import snd_crash
 LocalDir = os.path.basename(os.path.dirname(__file__))
 
 ANGLE_COUNT = 24
-ANGLE_STEP  = 360 / ANGLE_COUNT
+ANGLE_STEP  = 360 // ANGLE_COUNT
 ANGLE_TABLE = {}
 for i in range(ANGLE_COUNT):
     a = i*ANGLE_STEP*math.pi/180.0
