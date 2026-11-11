@@ -3,10 +3,15 @@ import io
 
 # Images are binary .ppm data (bytes): a short header, then 3 bytes per pixel.
 
+# images come from game servers, which the client does not trust: no
+# side may be larger than this, and the data must match the size
+MAX_SIDE = 4096
+
 def decodepixmap(data):
     f = io.BytesIO(data)
     sig = f.readline().strip()
-    assert sig == b"P6"
+    if sig != b"P6":
+        raise ValueError("not a PPM image")
     while 1:
         line = f.readline().strip()
         if not line.startswith(b'#'):
@@ -14,10 +19,22 @@ def decodepixmap(data):
     wh = line.split()
     w, h = list(map(int, wh))
     sig = f.readline().strip()
-    assert sig == b"255"
+    if sig != b"255":
+        raise ValueError("not an 8-bit PPM image")
     data = f.read()
     f.close()
-    return w, h, data
+    if not (0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE) or len(data) < 3*w*h:
+        raise ValueError("bad PPM image size %dx%d" % (w, h))
+    return w, h, data[:3*w*h]
+
+def cliprect(rect, size):
+    """An icon rectangle sent by a server, clipped to its image of the
+    given (w, h) size: the display drivers (the C one included) read the
+    image within it."""
+    x, y, w, h = rect
+    x0, y0 = max(0, x), max(0, y)
+    x1, y1 = min(size[0], x + w), min(size[1], y + h)
+    return x0, y0, max(0, x1 - x0), max(0, y1 - y0)
 
 def encodepixmap(w, h, data):
     return b'P6\n%d %d\n255\n' % (w, h) + data
