@@ -82,11 +82,24 @@ static void flush(DisplayObject* self)
   XSync(self->dpy, False);
 }
 
+/* XShmAttach() fails asynchronously, with BadAccess, when the X server
+   cannot reach our shared memory (ssh -X, containers with their own IPC
+   namespace).  Xlib's default handler would end the process, so catch
+   it while attaching and fall back to the slower non-shm mode. */
+static int shm_attach_failed;
+
+static int catch_shm_error(Display* dpy, XErrorEvent* ev)
+{
+  shm_attach_failed = 1;
+  return 0;
+}
+
 static int create_shm_image(DisplayObject* self, XImage_Shm* img,
                             int width, int height)
 {
-  int image_size = 4*width*height;
-	
+  int (*old_handler)(Display*, XErrorEvent*);
+  size_t image_size;
+
   if (XShmQueryExtension(self->dpy) == False)
     /* does we have the extension at all? */
     return 0;
@@ -104,11 +117,12 @@ static int create_shm_image(DisplayObject* self, XImage_Shm* img,
     return 0;
   img->m_width = width;
   img->m_height = height;
+  image_size = (size_t) img->m_shm_image->bytes_per_line * height;
 
   /* Create shared memory segment: */
   img->m_shminfo.shmid = shmget(IPC_PRIVATE, image_size, IPC_CREAT|0777);
   if (img->m_shminfo.shmid < 0)
-    return 0;
+    goto fail;
 	
   /* Get memory address to segment: */
   img->m_shminfo.shmaddr = (char *) shmat(img->m_shminfo.shmid, 0, 0);
@@ -116,14 +130,31 @@ static int create_shm_image(DisplayObject* self, XImage_Shm* img,
   /* Mark the segment as destroyable (it will be destroyed when this
      process terminates) */
   shmctl(img->m_shminfo.shmid, IPC_RMID, NULL);
+  if (img->m_shminfo.shmaddr == (char *) -1)
+    goto fail;
 
   /* Tell XServer that it may only read from it and attach to display: */
   img->m_shminfo.readOnly = True;
-  XShmAttach (self->dpy, &img->m_shminfo);
+  XSync(self->dpy, False);
+  shm_attach_failed = 0;
+  old_handler = XSetErrorHandler(catch_shm_error);
+  XShmAttach(self->dpy, &img->m_shminfo);
+  XSync(self->dpy, False);
+  XSetErrorHandler(old_handler);
+  if (shm_attach_failed)
+    {
+      shmdt(img->m_shminfo.shmaddr);
+      goto fail;
+    }
 
   /* Fill the XImage struct: */
   img->m_shm_image->data = img->m_shminfo.shmaddr;
   return 1;
+
+ fail:
+  XDestroyImage(img->m_shm_image);
+  img->m_shm_image = NULL;
+  return 0;
 }
 
 static PyObject* new_display(PyObject* dummy, PyObject* args)
