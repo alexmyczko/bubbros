@@ -7,8 +7,8 @@
 #
 # Open TCP 8055, UDP 8055 and TCP 8050 in the firewall.  Players then set
 # BUBBROS_METASERVER=<this host> or enter it on the Options page.  Logs:
-# journalctl -u bubbros-metaserver; crash reports sent by game servers:
-# /var/lib/bubbros-metaserver.
+# journalctl -u bubbros-metaserver; crash reports sent by game servers
+# (at most 100 files): /var/lib/bubbros-metaserver.
 
 [Unit]
 Description=Bub & Bob meta-server (list of Internet games)
@@ -18,8 +18,11 @@ Wants=network-online.target
 
 [Service]
 ExecStart=/usr/bin/python3 /opt/bubbros/metaserver/metaserver.py --port 8055 --http 8050
-Restart=on-failure
+Restart=always
 RestartSec=5
+# a client sending garbage makes it log a line per message
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=200
 
 # no privileges: ports above 1024, a throw-away user, a read-only system
 DynamicUser=yes
@@ -49,9 +52,11 @@ SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
 UMask=0077
+PrivateUsers=yes
 # it serves at most 50 games and 60 connections
 MemoryMax=128M
 TasksMax=32
+LimitNOFILE=256
 
 [Install]
 WantedBy=multi-user.target
