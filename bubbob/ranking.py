@@ -192,9 +192,9 @@ def ranking_picture(results, maximum, givepoints):
             teamplayers[p.team].append((n,p))
         else:
             ranking.append((n, random.random(), p))
-    teamplayers[0].sort()
+    teamplayers[0].sort(key=lambda item: item[0])
     teamplayers[0].reverse()
-    teamplayers[1].sort()
+    teamplayers[1].sort(key=lambda item: item[0])
     teamplayers[1].reverse()
     if teamplayers[0] != []:
         ranking.append((teamrank[0], random.random(), teamplayers[0]))
@@ -257,7 +257,7 @@ def screen_monster():
             if count:
                 pairs.append((count, p, p2))
     random.shuffle(pairs)
-    pairs.sort()
+    pairs.sort(key=lambda item: item[0])   # ties stay shuffled
     pairs.reverse()
     del pairs[5:]
     lines = []
@@ -281,7 +281,7 @@ def screen_catch():
             if count:
                 pairs.append((count, p, p2))
     random.shuffle(pairs)
-    pairs.sort()
+    pairs.sort(key=lambda item: item[0])   # ties stay shuffled
     pairs.reverse()
     del pairs[5:]
     lines = []
@@ -305,7 +305,7 @@ def screen_bonus():
             if count > 1:
                 pairs.append((count, p, p2))
     random.shuffle(pairs)
-    pairs.sort()
+    pairs.sort(key=lambda item: item[0])   # ties stay shuffled
     pairs.reverse()
     seen = {}
     npairs = []
@@ -332,7 +332,7 @@ def screen_bubble():
         if count:
             pairs.append((count, p))
     random.shuffle(pairs)
-    pairs.sort()
+    pairs.sort(key=lambda item: item[0])   # ties stay shuffled
     pairs.reverse()
     del pairs[5:]
     lines = []
@@ -352,7 +352,7 @@ def screen_die():
         if count:
             pairs.append((count, p))
     random.shuffle(pairs)
-    pairs.sort()
+    pairs.sort(key=lambda item: item[0])   # ties stay shuffled
     pairs.reverse()
     del pairs[5:]
     lines = []

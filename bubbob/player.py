@@ -155,7 +155,7 @@ class Dragon(ActiveSprite):
         timeout += BubPlayer.FrameCounter
         lst = list(self.dcap['carrying'])
         lst.append((timeout, bonus))
-        lst.sort()
+        lst.sort(key=lambda item: item[0])
         self.dcap['carrying'] = lst
 
     def listcarrybonuses(self):
@@ -1056,11 +1056,12 @@ def scoreboard(reset=0, inplace=0, compresslimittime=0):
         else:
             teamslist[p.team].append((points,p))
             teamspoints[p.team] += points
-    teamslist[0].sort()
-    teamslist[1].sort()
+    teamslist[0].sort(key=lambda item: item[0])
+    teamslist[1].sort(key=lambda item: item[0])
     plist.append((teamspoints[0], None, teamslist[0]))
     plist.append((teamspoints[1], None, teamslist[1]))
-    plist.sort()
+    # by score; on a tie the teams (p is None) come first, as in Python 2
+    plist.sort(key=lambda item: (item[0], item[1] is not None))
     x0 = boards.bwidth
     y0 = boards.bheight
     for score, p, t in plist:
