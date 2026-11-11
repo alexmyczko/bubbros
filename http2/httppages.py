@@ -14,7 +14,7 @@ LOCALDIR = os.path.abspath(os.path.dirname(FILE))
 
 sys.path.insert(0, os.path.abspath(os.path.join(LOCALDIR, os.pardir)))
 sys.path.insert(0, os.path.abspath(os.path.join(LOCALDIR, os.pardir,'common')))
-import gamesrv, httpserver, hostchooser
+import gamesrv, httpserver, hostchooser, configfile
 from metaserver import metaclient
 from httpserver import HTTPRequestError
 
@@ -38,7 +38,6 @@ class Options:
 
 
 class PageServer:
-    CONFIGFILE = 'config.txt'
     localservers = None
 
     def __init__(self, Game):
@@ -46,7 +45,7 @@ class PageServer:
         self.seed = hex(random.randrange(0x1000, 0x10000))
         #self.unique_actions = {}
         self.localhost = gamesrv.HOSTNAME
-        self.filename = os.path.join(LOCALDIR, self.CONFIGFILE)
+        self.filename = configfile.path(os.path.join(LOCALDIR, os.pardir))
         data = self.loadoptionfile()
         self.globaloptions = Options(data.get('*', {}))
         self.localoptions  = Options(data.get(self.localhost, {}))
@@ -166,10 +165,11 @@ class PageServer:
         data['*'] = self.globaloptions.dict()
         data[self.localhost] = self.localoptions.dict()
         try:
+            os.makedirs(os.path.dirname(self.filename), exist_ok=True)
             f = open(self.filename, 'w')
             print(repr(data), file=f)
             f.close()
-        except IOError as e:
+        except OSError as e:
             print("! Cannot save config file: " + str(e), file=sys.stderr)
 
     def reloadports(self):

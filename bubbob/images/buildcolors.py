@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 import sys, os
 
 if __name__ == '__main__':
@@ -282,11 +282,14 @@ else:
 
 
 if __name__ == '__auto__':    # when execfile'd from images.py
-    rebuild = list(updatecheck ().items ())
-    rebuild.sort ()
-    for fn, r in rebuild:
-        if r:
-            convert(fn)
+    # an installed game has its images built already, in a directory
+    # the players cannot write to, maybe with all the same mtimes
+    if os.access (ThisDir, os.W_OK):
+        rebuild = list(updatecheck ().items ())
+        rebuild.sort ()
+        for fn, r in rebuild:
+            if r:
+                convert(fn)
     
 #try:
 #    import psyco

@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import sys, os
 from socket import *
@@ -7,7 +7,7 @@ import struct, zlib
 import time
 from common.msgstruct import *
 from common.pixmap import decodepixmap
-from common import hostchooser
+from common import hostchooser, configfile
 import modes
 from modes import KeyPressed, KeyReleased
 import caching
@@ -162,8 +162,7 @@ class Playfield:
         if 'cfgfile' in mode[-1]:
             self.trackcfgfile = mode[-1]['cfgfile']
         else:
-            self.trackcfgfile = os.path.join(DataChunk.SOURCEDIR,
-                                             'http2', 'config.txt')
+            self.trackcfgfile = configfile.path(DataChunk.SOURCEDIR)
         self.udpsock = None
         self.udpsock_low = None
         self.udpsock2 = None
