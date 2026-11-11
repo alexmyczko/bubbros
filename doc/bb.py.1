@@ -83,12 +83,17 @@ If this option is not specified the number of lives will be infinite.
 
 .TP
 .B -m, --metaserver
-Register server with the
-.I Metaserver
-(currently) at 
-.BR codespeak.net:8050 .
+List the server on an Internet server list (a
+.IR meta-server ,
+see
+.BR metaserver/metaserver.py ).
 This makes your server visible to everybody, and also facilitates
-joining through a fascistic firewall.
+joining through a firewall.  There is no public meta-server at the
+moment; set one with the environment variable
+.B BUBBROS_METASERVER
+=
+.IR host [: port [: httpport ]]
+or on the Options page of the web interface.
 
 .TP
 .B --port

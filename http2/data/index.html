@@ -97,6 +97,7 @@ if running:
     print('<p><strong><a href="join.html?host=%s&port=%s&httpport=%s&time=%s">' % (running[0][0], running[0][1], self.httpport, tim), end=' ')
     print('Join your own game now</a></strong> at <strong>%s:%s</strong></p>' % (
         running[0]))
+    print(self.metastatusline())
 ##if metapublish:
 ##    import time
 ##    print '<p><a href="register.html?a=%s">' % time.time()
@@ -260,10 +261,7 @@ if running and not found:
       <table border=0>
       <tr>
         <td width=48><img src="bub.png"></td>
-        <td><p><a href="%(self.metaserverpage(headers))s">Go to the Internet servers page</a></p>
-        <p><font size=-1>Don't forget to <a href="name.html">give a name</a>
-           to your dragons before you join a server!
-        </font></p></td>
+        <td>%(self.metaserverbox())s</td>
       </tr>
       </table>
     </td>

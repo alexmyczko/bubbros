@@ -39,7 +39,8 @@ def parse_cmdline(argv):
         print('  -s#  --sound=#    sound driver (see below)', file=sys.stderr)
         print('       --music=no   disable background music', file=sys.stderr)
         print('  -h   --help       display this text', file=sys.stderr)
-        print('  -m   --metaserver connect with the help of the metaserver', file=sys.stderr)
+        print('  -m   --metaserver connect with the help of the Internet server list (set', file=sys.stderr)
+        print('                    it with BUBBROS_METASERVER=host[:port[:httpport]])', file=sys.stderr)
         print('                      (list servers with Client.py -m)', file=sys.stderr)
         print('  -t   --tcp        for slow or proxy connections', file=sys.stderr)
         print('  -u   --udp        for fast direct connections', file=sys.stderr)
@@ -155,6 +156,8 @@ def metaconnect(metaaddr):
     import common.msgstruct
     port = common.msgstruct.PORTS.get('BACK')
     s = metaclient.meta_connect(metaaddr, port)
+    if s is None:
+        sys.exit(1)        # meta_connect() said why
     sockaddr = s.getpeername()
     return s, sockaddr
 

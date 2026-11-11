@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(LOCALDIR, os.pardir)))
 sys.path.insert(0, os.path.abspath(os.path.join(LOCALDIR, os.pardir,'common')))
 import gamesrv, httpserver, hostchooser, configfile
 from metaserver import metaclient
-from httpserver import HTTPRequestError
+from httpserver import HTTPRequestError, htmlquote
 
 
 class Options:
@@ -64,6 +64,7 @@ class PageServer:
         httpserver.register(prefix+'run.html',     self.runloader)
         httpserver.register(prefix+'stop.html',    self.stoploader)
         httpserver.register(prefix+'join.html',    self.joinloader)
+        httpserver.register(prefix+'meta.html',    self.metaloader)
         #httpserver.register(prefix+'register.html',self.registerloader)
         httpserver.register(prefix+'options.html', self.optionsloader)
         httpserver.register(prefix+'name.html',    self.nameloader)
@@ -211,11 +212,57 @@ class PageServer:
 
     ### loaders ###
 
-    def metaserverpage(self, headers):
-        metaserver_url = metaclient.METASERVER_URL
+    def metaserverpage(self, headers, addr=None):
+        addr = addr or metaclient.address()
         myhost = my_host(headers)
         joinurl = quote_plus('%s/%s' % (myhost, self.seed))
-        return metaserver_url + '?join=%s&time=%s' % (joinurl, time.time())
+        return metaclient.list_url(addr) + '?join=%s&time=%s' % (joinurl,
+                                                                 time.time())
+
+    def metaserverbox(self):
+        """The 'Internet games' box of the main page.  No network access:
+        the meta-server is only contacted when the player clicks."""
+        addr = metaclient.address()
+        if addr is None:
+            return ('<p>No Internet server list is set. You can still join a '
+                    'game by its address, above.</p>'
+                    '<p><font size=-1>To use a server list, enter its address '
+                    'in the <a href="options.html">Options</a> (Network '
+                    'options), or set %s.</font></p>' % metaclient.ENVIRON_VAR)
+        return ('<p><a href="meta.html?time=%s">Go to the Internet servers '
+                'page</a> (%s:%d)</p>'
+                '<p><font size=-1>Don\'t forget to <a href="name.html">give a '
+                'name</a> to your dragons before you join a server!</font></p>'
+                % (time.time(), addr[0], addr[1]))
+
+    def metastatusline(self):
+        """Whether the running game is on the Internet server list."""
+        status = getattr(gamesrv.game, 'metastatus', None)
+        addr = metaclient.address()
+        where = addr and '%s:%d' % addr[:2] or ''
+        return {
+            'listed': '<p>Listed on the Internet server list %s.</p>' % where,
+            'unreachable': '<p>Not listed: cannot reach the Internet server '
+                           'list %s.</p>' % where,
+            'unset': '<p>Not listed: no Internet server list is set.</p>',
+            }.get(status, '')
+
+    def metaloader(self, headers, **options):
+        addr = metaclient.address()
+        if addr is None:
+            text = 'No Internet server list is set.'
+        else:
+            reason = metaclient.reachable(addr)
+            if reason is None:
+                return None, self.metaserverpage(headers, addr)
+            text = ('Cannot reach the Internet server list at %s:%d: %s.'
+                    % (addr[0], addr[1], htmlquote(reason)))
+        return StringIO(
+            '<html><head><title>Internet games</title></head><body>'
+            '<p>%s</p><p>Check its address in the <a href="options.html">'
+            'Options</a> (Network options), or join a game by its address '
+            'on the <a href="index.html">main page</a>.</p></body></html>'
+            % text), 'text/html'
 
     def mainpage(self, headers, juststarted=0, justconnected=0):
         running = my_server()

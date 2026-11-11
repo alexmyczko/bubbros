@@ -3,27 +3,99 @@ from select import select
 from socket import *
 from metastruct import *
 
-_SERVER = 'ctpug.org.za'
-
-METASERVER = (_SERVER, 8055)
-METASERVER_UDP = (_SERVER, 8055)
-METASERVER_URL = 'http://%s:8050/bub-n-bros.html' % (_SERVER,)
 VERSION_TAG = 1601
 
-def connect(failure=[]):
+# The meta-server keeps the list of Internet games.  The public one,
+# ctpug.org.za, no longer runs, so there is no default: set one with the
+# environment variable below or on the Options page ("metaserver" in the
+# configuration file), as HOST, HOST:PORT or HOST:PORT:HTTPPORT.
+ENVIRON_VAR = 'BUBBROS_METASERVER'
+DEFAULT_PORT = 8055         # TCP and UDP
+DEFAULT_HTTP_PORT = 8050    # the page listing the games
+CONNECT_TIMEOUT = 3.0
+NOT_SET = ('no meta-server is set (environment variable %s, or the '
+           'Options page)' % ENVIRON_VAR)
+
+def parse_address(text):
+    """'host[:port[:httpport]]' -> (host, port, httpport); ValueError if
+    malformed, None if empty."""
+    text = (text or '').strip()
+    if not text:
+        return None
+    parts = text.split(':')
+    if len(parts) > 3 or not parts[0]:
+        raise ValueError('bad meta-server address %r' % (text,))
+    try:
+        port = int(parts[1]) if len(parts) > 1 and parts[1] else DEFAULT_PORT
+        httpport = (int(parts[2]) if len(parts) > 2 and parts[2]
+                    else DEFAULT_HTTP_PORT)
+    except ValueError:
+        raise ValueError('bad meta-server address %r' % (text,))
+    return parts[0], port, httpport
+
+def configured_address():
+    """The text of the meta-server setting, environment first, then the
+    configuration file of the web page (local options of this host)."""
+    text = os.environ.get(ENVIRON_VAR)
+    if text is not None:
+        return text
+    try:
+        from common import configfile
+    except ImportError:
+        import configfile
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+    try:
+        with open(configfile.path(root)) as f:
+            data = eval(f.read().strip() or '{}', {}, {})
+    except (OSError, SyntaxError, ValueError):
+        return None
+    return data.get(gethostname(), {}).get('metaserver')
+
+def address():
+    """(host, port, httpport) of the meta-server, or None if none is set
+    or the setting cannot be read (a message is printed then)."""
+    text = configured_address()
+    try:
+        return parse_address(text)
+    except ValueError as e:
+        print('*** %s' % e, file=sys.stderr)
+        return None
+
+def list_url(addr):
+    return 'http://%s:%d/bub-n-bros.html' % (addr[0], addr[2])
+
+def connect(failure=[], addr=None):
     if len(failure) >= 2:
         return None
-    print('Connecting to the meta-server %s:%d...' % METASERVER, file=sys.stderr)
+    if addr is None:
+        addr = address()
+    if addr is None:
+        print('*** %s' % NOT_SET, file=sys.stderr)
+        return None
+    print('Connecting to the meta-server %s:%d...' % addr[:2], file=sys.stderr)
     try:
         s = socket(AF_INET, SOCK_STREAM)
-        s.connect(METASERVER)
+        s.settimeout(CONNECT_TIMEOUT)
+        s.connect(addr[:2])
+        s.settimeout(None)
     except error as e:
-        print('*** cannot contact meta-server:', str(e), file=sys.stderr)
+        print('*** cannot contact meta-server %s:%d: %s' % (addr[:2] + (e,)),
+              file=sys.stderr)
         failure.append(e)
         return None
     else:
         print('connected.', file=sys.stderr)
     return s
+
+def reachable(addr):
+    """None if the meta-server at addr accepts a connection, else the
+    reason, as text."""
+    try:
+        s = create_connection(addr[:2], CONNECT_TIMEOUT)
+    except (error, OSError) as e:
+        return str(e) or e.__class__.__name__
+    s.close()
+    return None
 
 # Python 2 tuned thread switching with sys.setcheckinterval(): 4096
 # bytecodes normally (the game loop runs undisturbed), 64 while the
@@ -92,9 +164,8 @@ class MetaClientSrv(MessageSocket):
             f = io.StringIO()
             print(sys.version, file=f)
             print('platform:   ', sys.platform, file=f)
-            print('executable: ', sys.executable, file=f)
-            print('argv:       ', sys.argv, file=f)
-            print('cwd:        ', os.getcwd(), file=f)
+            print('argv:       ', [os.path.basename(a) for a in sys.argv[:1]]
+                  + sys.argv[1:], file=f)
             print('version tag:', VERSION_TAG, file=f)
             print(file=f)
             traceback.print_exc(file = f)
@@ -258,10 +329,11 @@ def meta_register(game):
     if not metaclisrv or metaclisrv.closed:
         s = connect()
         if not s:
-            return
+            return False
         metaclisrv = MetaClientSrv(s, game)
     metaclisrv.s.sendall(message(MMSG_INFO, encodedict(info)) +
                          message(MMSG_START, port))
+    return True
 
 def meta_unregister(game):
     global metaclisrv
@@ -290,7 +362,8 @@ class Event:
 class MetaClientCli:
     fatalerror = False
     
-    def __init__(self, serverkey, backconnectport):
+    def __init__(self, serverkey, backconnectport, metaserver):
+        self.metaserver = metaserver[:2]    # (host, port), TCP and UDP
         self.resultsocket = None
         self.serverkey = serverkey
         self.backconnectport = backconnectport
@@ -307,7 +380,7 @@ class MetaClientCli:
         self.inputmsgqueue = []
         self.gotudpport = None
         if not (PORTS.get('CLIENT') or PORTS.get('sendudpto')):
-            self.s = connect()
+            self.s = connect(addr=self.metaserver)
             _thread.start_new_thread(self.acquire_udp_port, ())
         else:
             self.s = None
@@ -375,7 +448,7 @@ class MetaClientCli:
     def try_indirect_connect(self):
         import _thread, time
         if not self.s:
-            self.s = connect()
+            self.s = connect(addr=self.metaserver)
         if not self.s:
             return
         self.routemsg(RMSG_WAKEUP)
@@ -541,7 +614,7 @@ class MetaClientCli:
             s.bind(('', INADDR_ANY))
             randomdata = hex(random.randrange(0, sys.maxsize)).encode('ascii')
             for i in range(5):
-                s.sendto(randomdata, METASERVER_UDP)
+                s.sendto(randomdata, self.metaserver)
                 time.sleep(0.05)
                 self.sendmsg(message(MMSG_UDP_ADDR, randomdata))
                 time.sleep(0.05)
@@ -559,10 +632,11 @@ class MetaClientCli:
 
 
 def meta_connect(serverkey, backconnectport=None):
-    global METASERVER
-    if PORTS.get('SSH_RELAY'):
-        METASERVER = PORTS['SSH_RELAY']
-    c = MetaClientCli(serverkey, backconnectport)
+    metaserver = PORTS.get('SSH_RELAY') or address()
+    if metaserver is None:
+        print('*** %s' % NOT_SET, file=sys.stderr)
+        return None
+    c = MetaClientCli(serverkey, backconnectport, metaserver)
     s = c.run()
     c.done()
     return s
