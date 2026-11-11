@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, string, struct
+import os, sys, struct, base64, subprocess
 os.chdir(os.pardir)
 sys.path.insert(0, os.getcwd())
 sys.path.insert(1, os.path.abspath(os.path.join(os.pardir, 'common')))
@@ -17,38 +17,40 @@ def create_image(name,source,extralines=0,alt=''):
     if len(sys.argv) == 2 and sys.argv[1] == '-i':
         return
     print(name, source)
-    src = open(source[0],'r')
-    assert src.readline().strip() == 'P6'
+    src = open(source[0],'rb')
+    assert src.readline().strip() == b'P6'
     line = src.readline()
-    while line[0] == '#':
+    while line[:1] == b'#':
         line = src.readline()
-    size = string.split(line)
-    w = string.atoi(size[0])
-    h = string.atoi(size[1])
+    size = line.split()
+    w = int(size[0])
+    h = int(size[1])
     c = src.readline().strip()
     data = src.read()
     src.close()
-    img = os.popen("convert PPM:- doc/images/"+name+'.png','w')
-    print('P6', file=img)
-    print(source[1][2], source[1][3]+extralines, file=img)
-    print(c, file=img)
+    # pipe a .ppm image into ImageMagick, which writes the .png
+    convert = subprocess.Popen(['convert', 'PPM:-', 'doc/images/'+name+'.png'],
+                               stdin=subprocess.PIPE)
+    img = convert.stdin
+    img.write(b'P6\n%d %d\n%s\n' % (source[1][2], source[1][3]+extralines, c))
     cx = source[1][0]+source[1][2]//2
     cy = source[1][1]+source[1][3]*6//7
     for y in range(source[1][1],source[1][1]+source[1][3]):
         for x in range(source[1][0],source[1][0]+source[1][2]):
             rgb = data[y*3*w+3*x:y*3*w+3*x+3]
-            if rgb == '\x01\x01\x01':
+            if rgb == b'\x01\x01\x01':
                 d = (x-cx)*(x-cx)+(y-cy)*(y-cy)*6
                 if d > 255: d = 255
-                rgb = chr(d)*3
+                rgb = bytes([d])*3
             img.write(rgb)
     for y in range(y+1, y+1+extralines):
         for x in range(source[1][0],source[1][0]+source[1][2]):
             d = (x-cx)*(x-cx)+(y-cy)*(y-cy)*6
             if d > 255: d = 255
-            rgb = chr(d)*3
+            rgb = bytes([d])*3
             img.write(rgb)
     img.close()
+    convert.wait()
     return html_tag(name, alt)
 
 def html_tag(name, alt):
@@ -56,7 +58,7 @@ def html_tag(name, alt):
     f = open('doc/'+url, 'rb')
     alldata = f.read()
     f.close()
-    url = 'data:image/png;base64,' + alldata.encode('base64').replace('\n','')
+    url = 'data:image/png;base64,' + base64.b64encode(alldata).decode('ascii')
     return '<IMG SRC="%s" ALT="%s">' % (url, alt)
 
     
@@ -113,20 +115,13 @@ for bonus in bonuses.Classes:
         continue
     name = split_name(bonus.__name__)
     name.reverse()
-    processed[bonus] = string.join(name)
+    processed[bonus] = ' '.join(name)
     if bonus is bonuses.Potion:
-        processed[Potion4] = string.join(name) + '.'
+        processed[Potion4] = ' '.join(name) + '.'
 
-def sorter(a,b):
-    if a[1] == b[1]:
-        return 0
-    elif a[1] < b[1]:
-        return -1
-    else:
-        return 1
-
+# sort by the bonus name
 sorted_classes = list(processed.items())
-sorted_classes.sort(sorter)
+sorted_classes.sort(key=lambda item: item[1])
 
 for clasindex, clas in enumerate(sorted_classes):
     bonus = clas[0]
@@ -141,7 +136,7 @@ for clasindex, clas in enumerate(sorted_classes):
                 continue
             images += create_image(name+repr(i), sprmap[image], alt=name)
             i += 1
-            if (l-3*(i/3) >= 3) and (i % 3) == 0:
+            if (l-3*(i//3) >= 3) and (i % 3) == 0:
                 images += '<br>'
     elif 'nimage' in bonus.__dict__:
         images = create_image(name, sprmap[bonus.nimage], alt=name)
