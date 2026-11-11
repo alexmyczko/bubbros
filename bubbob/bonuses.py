@@ -2446,8 +2446,10 @@ def end_normal_play():
 # hack hack hack!
 def __cheat(c):
     c = c.split(',')
-    c[0] = globals()[c[0]]
-    assert issubclass(c[0], Bonus)
+    cls = globals().get(c[0])
+    if not (isinstance(cls, type) and issubclass(cls, Bonus)):
+        return       # not a bonus (and assert is gone with python3 -O)
+    c[0] = cls
     Cheat.append(tuple(c))
 import builtins
 builtins.__cheat = __cheat
