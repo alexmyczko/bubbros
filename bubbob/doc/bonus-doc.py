@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/env python3
 
 import os, sys, struct, base64, subprocess
 os.chdir(os.pardir)
