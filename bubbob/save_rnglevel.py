@@ -13,6 +13,13 @@ import string
 sys.path.append('..')
 sys.path.append('../common')
 
+# The levels ask the running game for its last board (boards.Board);
+# these scripts run without a game, so give them a stand-in.
+import gamesrv
+class _NoGame:
+    finalboard = None
+gamesrv.game = _NoGame()
+
 n_lvls = 1
 
 idx = 0
