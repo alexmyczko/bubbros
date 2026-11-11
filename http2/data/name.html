@@ -104,7 +104,7 @@ for id, img, bgcolor in [
         if team == value:
             s += ' selected'
         return s
-    print """
+    print("""
 <tr>
         <td bgcolor="#000000">&nbsp;</td>
         <td bgcolor="%s" align="right" width="35%%"><img src="%s"></td>
@@ -116,7 +116,7 @@ for id, img, bgcolor in [
         <td bgcolor="#000000">&nbsp;</td>
 </tr>
 """ % (bgcolor, img, bgcolor, keyid, playername,
-       bgcolor, id, nameval('off'), nameval(1), nameval(2))
+       bgcolor, id, nameval('off'), nameval(1), nameval(2)))
 )s
 
 <tr>

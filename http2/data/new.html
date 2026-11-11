@@ -94,10 +94,10 @@ def nameval(name, value, default=0, options=options):
         <td width=48><img src="bob.png"></td>
         <td><select name="file">%(
 for displayname, filename in Game.FnListBoards():
-    print '<option',
+    print('<option', end=' ')
     if filename == str(options.file):
-        print 'selected',
-    print 'value="%s">' % htmlquote(filename), htmlquote(displayname)
+        print('selected', end=' ')
+    print('value="%s">' % htmlquote(filename), htmlquote(displayname))
 )s</select>
         </td>
       </tr>
@@ -128,13 +128,13 @@ and go on ...
 steps = [
     (1, 'none'),
     (2, 'by steps of 2 (skip every other level)')]
-for i in range(3, 10) + range(10, 30, 5):
+for i in list(range(3, 10)) + list(range(10, 30, 5)):
     steps.append((i, 'by steps of %d levels' % i))
 for i, text in steps:
-    print '<option',
+    print('<option', end=' ')
     if str(i) == str(options.stepboard):
-        print 'selected',
-    print 'value="%d">' % i, text
+        print('selected', end=' ')
+    print('value="%d">' % i, text)
 )s</select>
     </td>
   </tr>
@@ -211,7 +211,7 @@ for i, text in steps:
 </tr>
 
 %(
-if running: print '''
+if running: print('''
 <tr>
 <td bgcolor="#000000">&nbsp;</td>
 <td bgcolor="#FFFFFF" align="center">
@@ -219,7 +219,7 @@ if running: print '''
 </td>
 <td bgcolor="#000000">&nbsp;</td>
 </tr>
-''')s
+'''))s
 
 <tr>
 <td bgcolor="#000000">&nbsp;</td>
