@@ -49,12 +49,19 @@ Modes: `pygame` and `gtk` (windowed), `fullscreen` (pygame).
 1. Start a game server and the client, `display/Client.py`, through
    `probe_client.py`, which logs what the display driver returns.
 2. Click two points of the screen, to learn where the playfield is and
-   how it is scaled.
+   how it is scaled (the window may be anywhere: points are tried until
+   one reaches the client).
 3. Click the first dragon of the taskbar and press Right, Left, Up and
    space, which define the keys of a new player.
 4. Hold Left, then Right.
 
-It passes when the client received the click on the dragon, the four
-keys in that order and then the movement keys. In full screen the
-656x400 playfield must also be scaled to the 1024x768 screen, keeping
-its proportions, and centred.
+It passes when:
+
+- the client received the click on the dragon, the four keys in that
+  order and then the movement keys;
+- the 656x400 playfield fills the window it was given, keeping its
+  proportions (some window managers maximize it); in full screen it
+  must also be centred on the 1024x768 screen;
+- with GTK, the click the driver reports is the one the drawing area
+  got: with client-side decorations a window's own coordinates include
+  its title bar.

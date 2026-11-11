@@ -354,14 +354,14 @@ class ProbeLog:
         return [tuple(map(int, l.split()[1:])) for l in self.lines()
                 if l.startswith('MOUSE ')]
 
+    def tagged(self, tag, conv=int):
+        return [tuple(conv(v) for v in l.split()[1:]) for l in self.lines()
+                if l.startswith(tag + ' ')]
+
     def driver(self):
         for l in self.lines():
             if l.startswith('DRIVER '):
                 return l.split()[1]
-
-    def new_mouse(self, count, timeout=5):
-        return wait_for(lambda: len(self.mouse()) > count and self.mouse()[-1],
-                        timeout, 'a click to reach the client')
 
 
 def run_case(envname, mode, workdir):
@@ -393,6 +393,19 @@ def run_case(envname, mode, workdir):
         s.stop()
 
 
+def click_and_read(inj, probe, x, y, timeout=2):
+    """Click at screen x, y; the playfield position the client got, or
+    None if the click did not reach it."""
+    before = len(probe.mouse())
+    inj.click(x, y)
+    try:
+        wait_for(lambda: len(probe.mouse()) > before, timeout, 'a click')
+    except RuntimeError:
+        return None
+    time.sleep(0.3)        # X11 may deliver the same click twice
+    return probe.mouse()[before]
+
+
 def drive_and_check(inj, probe, mode):
     problems = []
     # the first key of a new virtual keyboard can be lost while the
@@ -400,12 +413,35 @@ def drive_and_check(inj, probe, mode):
     inj.key('Shift_L' if isinstance(inj, MutterInjector) else 'shift')
     time.sleep(0.5)
     # calibration: where do two screen points land in the playfield?
-    cx, cy = SCREEN[0] // 2, SCREEN[1] // 2
-    inj.click(cx, cy)
-    px, py = probe.new_mouse(0)
-    inj.click(cx + 100, cy + 100)
-    qx, qy = probe.new_mouse(1)
-    scale = 100.0 / max(1, qx - px)
+    # The window may be anywhere: try the centre of the screen, then a
+    # grid, until a click reaches the client.
+    candidates = [(SCREEN[0] * fx, SCREEN[1] * fy)
+                  for fy in (0.5, 0.3, 0.7, 0.15, 0.85)
+                  for fx in (0.5, 0.3, 0.7, 0.15, 0.85)]
+    for sx, sy in candidates:
+        first = click_and_read(inj, probe, sx, sy)
+        if first:
+            break
+    else:
+        raise RuntimeError('no click reached the client window')
+    px, py = first
+    for dx, dy in ((100, 100), (-100, -100), (100, -100), (-100, 100)):
+        second = click_and_read(inj, probe, sx + dx, sy + dy)
+        if second and second[0] != px:
+            break
+    else:
+        raise RuntimeError('could not measure the scale of the playfield')
+    qx, qy = second
+    scale = float(dx) / (qx - px)
+    # the playfield must fill the window it is shown in (a window manager
+    # may maximize it), keeping its proportions
+    windows = probe.tagged('WINDOW')
+    if windows:
+        ww, wh = windows[-1]
+        fill = min(ww / PLAYFIELD[0], wh / PLAYFIELD[1])
+        if abs(scale - fill) > 0.02:
+            problems.append('playfield scaled %.3f in a %dx%d window, '
+                            'expected %.3f' % (scale, ww, wh, fill))
     if mode == 'fullscreen':
         expected = min(SCREEN[0] / PLAYFIELD[0], SCREEN[1] / PLAYFIELD[1])
         centre = (PLAYFIELD[0] // 2, PLAYFIELD[1] // 2)
@@ -414,9 +450,8 @@ def drive_and_check(inj, probe, mode):
             problems.append('full screen not scaled and centred: scale %.3f, '
                             'screen centre at %d,%d' % (scale, px, py))
     # click the first dragon, then define the keys
-    inj.click(cx + 100 + (DRAGON[0] - qx) * scale,
-              cy + 100 + (DRAGON[1] - qy) * scale)
-    x, y = probe.new_mouse(2)
+    x, y = click_and_read(inj, probe, sx + dx + (DRAGON[0] - qx) * scale,
+                          sy + dy + (DRAGON[1] - qy) * scale) or (-1, -1)
     if abs(x - DRAGON[0]) > 3 or abs(y - DRAGON[1]) > 3:
         problems.append('the click on the dragon arrived at %d,%d' % (x, y))
     for name in KEYS:
@@ -427,6 +462,17 @@ def drive_and_check(inj, probe, mode):
         inj.key(name, hold=1.5)
         time.sleep(0.5)
     time.sleep(0.5)
+
+    # GTK: the click the driver reports must be the one the drawing area
+    # got, mapped through the driver's scale and offset (a window's own
+    # coordinates include the title bar of client-side decorations)
+    for (ax, ay, f, ox, oy), (mx, my) in zip(probe.tagged('AREA', float),
+                                             probe.mouse()):
+        ex, ey = (ax - ox) / f, (ay - oy) / f
+        if abs(ex - mx) > 2 or abs(ey - my) > 2:
+            problems.append('GTK click at %d,%d of the drawing area reported '
+                            'at %d,%d' % (ex, ey, mx, my))
+            break
 
     lines = probe.lines()
     defined = []

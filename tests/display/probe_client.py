@@ -7,6 +7,9 @@ Each line of LOG is one event:
   MOUSE <x> <y>             a click, in playfield coordinates
   KEY <keysym> <1|0>        a key press (1) or release (0)
   DEFINE <keysym>           a key given to the "choose four keys" step
+  WINDOW <w> <h>            the size the playfield is shown in, at a click
+  AREA <x> <y> <f> <ox> <oy>  GTK only: the click as the drawing area got
+                            it, with the driver's scale and offset
 run.py reads LOG while the client runs.  The client's own output goes
 to stdout as usual.
 """
@@ -37,11 +40,38 @@ def open_dpy(mode, *args):
             LOG.write('KEY %d %d\n' % (keysym, event == modes.KeyPressed))
         return events
 
+    def window_size():
+        if name.lower() == 'pygame':
+            import pygame
+            return pygame.display.get_window_size()
+        if name.lower() == 'gtk':
+            return (dpy.area.get_allocated_width(),
+                    dpy.area.get_allocated_height())
+
     def logged_mouseevents():
         events = mouseevents()
         for x, y in events:
             LOG.write('MOUSE %d %d\n' % (x, y))
+            size = window_size()
+            if size:
+                LOG.write('WINDOW %d %d\n' % size)
         return events
+
+    if name.lower() == 'gtk':
+        # listen on the toplevel window, where every click ends up, and
+        # work out where it was in the drawing area from root coordinates;
+        # asking the drawing area itself for button events would change
+        # which window GTK delivers them to, and hide the difference
+        def area_click(widget, event):
+            ox, oy = dpy.area.get_window().get_origin()[1:]
+            alloc = dpy.area.get_allocation()
+            if not dpy.area.get_has_window():
+                ox, oy = ox + alloc.x, oy + alloc.y
+            view = tuple(getattr(dpy, 'view', (1.0, 0.0, 0.0)))
+            LOG.write('AREA %d %d %.4f %.1f %.1f\n'
+                      % ((event.x_root - ox, event.y_root - oy) + view))
+            return False
+        dpy.window.connect('button-press-event', area_click)
 
     dpy.keyevents = logged_keyevents
     dpy.mouseevents = logged_mouseevents
