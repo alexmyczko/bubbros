@@ -1027,9 +1027,11 @@ class Potion(RandomBonus):
                ('potion4',             750,  None),
                ]
     LocalDir = os.path.dirname(__file__) or os.curdir
-    Extensions = [s for s in os.listdir(LocalDir)
-                    if s.startswith('ext') and
-                       os.path.isdir(os.path.join(LocalDir, s))]
+    Extensions = []
+    for s in os.listdir(LocalDir):
+        if s.startswith('ext') and os.path.isdir(os.path.join(LocalDir, s)):
+            Extensions.append(s)
+    del s
     random.shuffle(Extensions)
     extra_cheat_arg = None
     big = 0

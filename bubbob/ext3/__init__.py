@@ -128,9 +128,11 @@ class Shot(Bubble):
 class Alien(monsters.Monster):
     ANGLES = 32
     SPEED = 5
-    ANGLE_TABLE = [(SPEED * math.cos(a*2.0*math.pi/ANGLES),
-                    -SPEED * math.sin(a*2.0*math.pi/ANGLES))
-                   for a in range(ANGLES)]
+    ANGLE_TABLE = []
+    for a in range(ANGLES):
+        ANGLE_TABLE.append((SPEED * math.cos(a*2.0*math.pi/ANGLES),
+                            -SPEED * math.sin(a*2.0*math.pi/ANGLES)))
+    del a
     touchable = 0
     
     def __init__(self, galaga, squadron, rank, relativey):
