@@ -44,19 +44,27 @@ class Display:
         w.connect("destroy", lambda w: sys.exit())
         w.connect("key-press-event", self.key_press_event)
         w.connect("key-release-event", self.key_release_event)
-        w.connect("motion-notify-event", self.motion_notify_event)
-        w.connect("button-press-event", self.button_press_event)
         w.add_events(Gdk.EventMask.KEY_PRESS_MASK |
-                     Gdk.EventMask.KEY_RELEASE_MASK |
-                     Gdk.EventMask.POINTER_MOTION_MASK |
-                     Gdk.EventMask.BUTTON_PRESS_MASK)
+                     Gdk.EventMask.KEY_RELEASE_MASK)
+        # the mouse is read on the drawing area, not on the window: with
+        # client-side decorations (GTK on Wayland) the window's
+        # coordinates include the title bar and the shadow, and clicks
+        # landed about 40 pixels below where they were made
         self.area = Gtk.DrawingArea()
         self.area.set_size_request(self.width, self.height)
         self.area.connect("draw", self.draw_event)
+        self.area.connect("motion-notify-event", self.motion_notify_event)
+        self.area.connect("button-press-event", self.button_press_event)
+        self.area.add_events(Gdk.EventMask.POINTER_MOTION_MASK |
+                             Gdk.EventMask.BUTTON_PRESS_MASK)
         w.add(self.area)
-        w.set_resizable(False)
         w.set_title(title)
         w.show_all()
+        # the window opens at the playfield's size and can then be resized
+        # or maximized; draw_event() scales the playfield to it
+        self.area.set_size_request(max(1, self.width // 4),
+                                   max(1, self.height // 4))
+        self.view = (1.0, 0.0, 0.0)     # scale and offset of the playfield
 
         self.offscreen = cairo.ImageSurface(cairo.FORMAT_RGB24,
                                             self.width, self.height)
@@ -165,9 +173,25 @@ class Display:
         cr.fill()
 
     def draw_event(self, widget, cr):
+        # the playfield scaled to the window, keeping its proportions,
+        # centred, with black bars around it
+        aw = widget.get_allocated_width()
+        ah = widget.get_allocated_height()
+        f = min(aw / self.width, ah / self.height)
+        ox = (aw - self.width * f) / 2
+        oy = (ah - self.height * f) / 2
+        self.view = (f, ox, oy)
+        cr.set_source_rgb(0, 0, 0)
+        cr.paint()
+        cr.translate(ox, oy)
+        cr.scale(f, f)
         cr.set_source_surface(self.front, 0, 0)
         cr.paint()
         return True
+
+    def playfield_xy(self, x, y):
+        f, ox, oy = self.view
+        return (int((x - ox) / f / self.scale), int((y - oy) / f / self.scale))
 
     def flip(self):
         # GTK paints the window later, when it handles the draw event,
@@ -198,10 +222,10 @@ class Display:
         self.events_key.append((event.keyval, KeyReleased))
 
     def motion_notify_event(self, window, event):
-        self.event_motion = (int(event.x/self.scale), int(event.y/self.scale))
+        self.event_motion = self.playfield_xy(event.x, event.y)
 
     def button_press_event(self, window, event):
-        self.events_mouse.append((int(event.x/self.scale), int(event.y/self.scale)))
+        self.events_mouse.append(self.playfield_xy(event.x, event.y))
 
     def keyevents(self):
         self.events_poll()

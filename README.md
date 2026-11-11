@@ -47,6 +47,12 @@ the options.
 
     python3 -m unittest discover -s tests
 
+Input and full screen on X11, GNOME, KDE, weston and sway, with real
+input events (needs those compositors installed, see
+tests/display/README.md):
+
+    python3 tests/display/run.py
+
 ## License
 
 The code is under the MIT license. The sounds, music and levels of the
