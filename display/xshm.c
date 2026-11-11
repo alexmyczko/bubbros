@@ -137,6 +137,10 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
   self = PyObject_New(DisplayObject, &Display_Type);
   if (self == NULL)
     return NULL;
+  /* display_dealloc() reads these, also when we fail below */
+  self->keyevents = NULL;
+  self->mouseevents = NULL;
+  self->motionevent = NULL;
 
   self->dpy = XOpenDisplay(NULL);
   if (self->dpy == NULL) goto err;
@@ -147,7 +151,7 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
 
   if (!XMatchVisualInfo(self->dpy, self->default_scr,
                         DefaultDepth(self->dpy,self->default_scr), TrueColor,
-                        &self->visual_info)) goto err2;
+                        &self->visual_info)) goto err;
 
   /* set window attributes */
   memset(&attr, 0, sizeof(attr));
@@ -169,7 +173,7 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
 		self->visual_info.visual,
 		CWOverrideRedirect | CWBackPixel | CWBackingStore,
 		&attr);
-  if (self->win == (Window) -1) goto err2;
+  if (self->win == (Window) -1) goto err;
 
   XMapRaised(self->dpy, self->win);
   
@@ -181,7 +185,7 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
     {
       self->backpixmap = XCreatePixmap(self->dpy, self->root,
                                        width, height, self->visual_info.depth);
-      if (self->backpixmap == (Pixmap) -1) goto err2;
+      if (self->backpixmap == (Pixmap) -1) goto err;
 
       self->gc_and = XCreateGC(self->dpy, self->win, 0, 0);
       self->gc_or = XCreateGC(self->dpy, self->win, 0, 0);
@@ -191,17 +195,12 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
     }
   
   self->selectinput = 0;
-  self->keyevents = NULL;
-  self->mouseevents = NULL;
-  self->motionevent = NULL;
 
   flush(self);
   return (PyObject*) self;
 
- err2:
-  XCloseDisplay(self->dpy);
  err:
-  Py_DECREF(self);
+  Py_DECREF(self);   /* display_dealloc() closes self->dpy */
   PyErr_SetString(PyExc_IOError, "cannot open X11 display");
   return NULL;
 }
