@@ -186,7 +186,14 @@ for i, text in steps:
       <table border=0>
       <tr>
         <td width=48><img src="sfbub.png"></td>
-        <td><p><input type=checkbox %(nameval("metapublish", "y", 1))s>&nbsp;register the server on the Bub-'n-Bros meta-server, allowing it to appear on everybody's Internet Games list</input></p></td>
+        <td><p>%(
+from metaserver import metaclient
+addr = metaclient.address()
+if addr is None:
+    print('No Internet server list is set (see the <a href="options.html">Options</a>), so this server cannot be listed there. Players can still join it by its address.')
+else:
+    print('<input type=checkbox %s>&nbsp;list this server on the Internet server list %s:%d, so that anyone can find and join it (this sends the name of the game, your address and, if the server crashes, an error report)</input>' % (nameval("metapublish", "y"), addr[0], addr[1]))
+)s</p></td>
       </tr>
       </table>
     </td>

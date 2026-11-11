@@ -218,9 +218,14 @@ begingroupitem(1)
 <td>
   <table border=0><tr>
     <td>
+   <p>Internet server list (meta-server), <code>host</code>, <code>host:port</code> or
+      <code>host:port:httpport</code>: <%(nameval("text", "metaserver", default="", mangling=0))s><br>
+      <font size=-1>Leave it empty for none. The environment variable
+      BUBBROS_METASERVER, if set, takes precedence.</font></p>
+
    <p>Network ports are automatically assigned, but you can optionally choose fixed
-      ones and let them in through your firewall. <font size=-1>Clients using the
-      "Internet games" meta-server can usually connect even through firewalls.
+      ones and let them in through your firewall. <font size=-1>Clients using an
+      Internet server list can usually connect even through firewalls.
       Moreover servers can re-route UDP traffic to clients behind firewalls over TCP.
 %(
 if java:
