@@ -2,7 +2,7 @@ class Music:
     def __init__(self, filename):
         self.filename = filename
         self.w = None
-        self.sampledata = ''
+        self.sampledata = b''
     def openchannel(self):
         if self.w is not None:
             self.w.close()
@@ -13,7 +13,7 @@ class Music:
                          w.getframerate())
         chan, width, freq = self.w_params
         self.dataleft = w.getnframes() * (chan*width)
-        self.sampledata = ''
+        self.sampledata = b''
     def decode(self, mixer, bytecount):
         result = self.sampledata
         if not result and self.dataleft > 0:

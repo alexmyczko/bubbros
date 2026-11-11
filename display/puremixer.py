@@ -1,4 +1,7 @@
-import sys, audioop
+import sys
+# audioop was removed from the standard library in Python 3.13; the
+# audioop-lts package (python3-audioop-lts in Debian) provides it again.
+import audioop
 
 
 class PureMixer:
@@ -19,7 +22,7 @@ class PureMixer:
         self.byteorder = byteorder or sys.byteorder
         self.parameters = (freq, self.bytes, signed, channels, self.byteorder)
         self.bytespersample = channels*self.bytes
-        self.queue = '\x00' * self.bytes
+        self.queue = b'\x00' * self.bytes
 
     def resample(self, data, freq=44100, bits=8, signed=0,
                              channels=1, byteorder=None):
@@ -82,13 +85,13 @@ class PureMixer:
         """Mix the next batch buffer.
         Each object in the mixer_channels list must be a file-like object
         with a 'read(size)' method."""
-        data = ''
+        data = b''
         already_seen = {}
         channels = mixer_channels[:]
         channels.reverse()
         for c in channels:
             if c in already_seen:
-                data1 = ''
+                data1 = b''
             else:
                 data1 = c.read(bufsize)
                 already_seen[c] = 1
@@ -120,4 +123,4 @@ def byteswap(data, byte):
     if a.itemsize != byte:
         raise ValueError('endianness convertion failed')
     a.byteswap()
-    return a.tostring()
+    return a.tobytes()
