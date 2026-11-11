@@ -43,6 +43,26 @@ The server prints the PORT it listens on.
 `python3 bubbob/bb.py --help` and `python3 display/Client.py --help` list
 the options.
 
+## Internet games
+
+Games on your local network show up by themselves, and you can always
+join a game by its address. To find games on the Internet, the game uses
+a meta-server, a list where servers register. The public one
+(ctpug.org.za) no longer runs, so none is set by default.
+
+To use one, give its address as `host`, `host:port` or
+`host:port:httpport` (default ports 8055 and 8050), either on the Options
+page, under Network options, or in an environment variable, which takes
+precedence:
+
+    BUBBROS_METASERVER=meta.example.org python3 BubBob.py
+
+To run your own meta-server:
+
+    python3 metaserver/metaserver.py [--port 8055] [--http 8050]
+
+It needs these ports open: TCP and UDP 8055, TCP 8050.
+
 ## Tests
 
     python3 -m unittest discover -s tests
