@@ -1706,350 +1706,294 @@ class Chestnut(RandomBonus):
         self.play(images.Snd.Fruit)
 
 
-try:
-    import statesaver
-except ImportError:
-    print("'statesaver' module not compiled, no clock bonus")
-    Clock = None
-else:
-    try:
-        from statesaver import standard_build      # PyPy
-    except ImportError:
-        def standard_build(self):
-            # an instance of the same class without calling __init__,
-            # which is what new.instance() did in Python 2
-            return self.__class__.__new__(self.__class__)
-    boards.Copyable.inst_build = standard_build
-    gamesrv.Sprite.inst_build = standard_build
+# The Time Machine.  The small clock brings the game back to the moment
+# it appeared, with timeline.rewind(); the big clock replays the whole
+# board with ghosts of the dragons (BigClockTicker).  Neither copies
+# the running generators any more (statesaver.c and statesaver.py did
+# that in Python 2), so both work on any Python 3.
+import timeline
 
-    def copygamestate():
-        # makes a copy of the game state.
-        ps = []
-        for p1 in BubPlayer.PlayerList:
-            #if p1.isplaying():
-            d = p1.__dict__.copy()
-            for key in BubPlayer.TRANSIENT_DATA:
-                if key in d:
-                    del d[key]
-            ps.append(d)
-            #else:
-            #    ps.append(None)
-        topstate = (
-            [g for g in boards.BoardGen if not g.gi_running],
-            boards.curboard,
-            images.ActiveSprites,
-            images.SpritesByLoc,
-            list(BubPlayer.__dict__.items()),
-            gamesrv.sprites,
-            gamesrv.sprites_by_n,
-            ps,
-            list(images.Snd.__dict__.items()),
-            )
-        #import pdb; pdb.set_trace()
-        return statesaver.copy(topstate)
+class Clock(RandomBonus):
+    "Time Machine. Let's do it again!"
+    touchable = 0
+    points = 0
+    nimage = Bonuses.clock
+    ticker = None
+    bigdoc = "Let's do the whole level again - with the help of ghosts from your own past."
 
-    def restoregamestate(savedstate):
-        (boards.BoardGen,
-         boards.curboard,
-         images.ActiveSprites,
-         images.SpritesByLoc,
-         BubPlayerdictitems,
-         gamesrv.sprites,
-         gamesrv.sprites_by_n,
-         ps,
-         imagesSnddictitems,
-         ) = savedstate
-        for key, value in BubPlayerdictitems:
-            try:
-                setattr(BubPlayer, key, value)
-            except (AttributeError, TypeError):
-                pass
-        for key, value in imagesSnddictitems:
-            try:
-                setattr(images.Snd, key, value)
-            except (AttributeError, TypeError):
-                pass
+    def __init__(self, x, y, big=0):
+        RandomBonus.__init__(self, -boards.bwidth, 0)
+        #print "starting clock"
+        self.savedpass = None      # where timeline.rewind() goes back to
+        self.savedscreens = []
+        if bigclockticker:
+            if not big:
+                self.kill()   # confusion between the two levels of saving
+                return
+            if x == OFFSCREEN:
+                if bigclockticker.state == 'pre':
+                    self.bigbonus = {'ticker': bigclockticker}
+                    bigclockticker.state = 'seen'
+            else:
+                # when taken, this has the same effect as the big clock
+                self.ticker = bigclockticker
+                self.move(x, y)
+                self.touchable = 1
+                return
+        self.gen = [self.delayed_show()]
 
-        for p, d in zip(BubPlayer.PlayerList, ps):
-            #if d is None:
-            #    p.reset()
-            #else:
-            p.__dict__.update(d)
-            if not p.isplaying():
-                p.zarkoff()
-
-    class Clock(RandomBonus):
-        "Time Machine. Let's do it again!"
-        touchable = 0
-        points = 0
-        nimage = Bonuses.clock
-        ticker = None
-        bigdoc = "Let's do the whole level again - with the help of ghosts from your own past."
-
-        def __init__(self, x, y, big=0):
-            RandomBonus.__init__(self, -boards.bwidth, 0)
-            #print "starting clock"
-            self.savedstate = None
-            self.savedscreens = []
-            if bigclockticker:
-                if not big:
-                    self.kill()   # confusion between the two levels of saving
-                    return
-                if x == OFFSCREEN:
-                    if bigclockticker.state == 'pre':
-                        self.bigbonus = {'ticker': bigclockticker}
-                        bigclockticker.state = 'seen'
-                else:
-                    # when taken, this has the same effect as the big clock
-                    self.ticker = bigclockticker
-                    self.move(x, y)
-                    self.touchable = 1
-                    return
-            self.gen = [self.delayed_show()]
-
-        def delayed_show(self):
-            boards.extra_boardgen(self.state_saver())
-            for i in range(10):
+    def delayed_show(self):
+        boards.extra_boardgen(self.state_saver())
+        for i in range(10):
+            yield None
+        if self.savedpass is not None:
+            for i in range(55):
                 yield None
-            if self.savedstate is not None:
-                for i in range(55):
-                    yield None
-                x, y = chooseground(200)
-                if x is not None:
-                    self.move(x, y)
-                    self.touchable = 1
-                    self.gen.append(self.timeouter())
-                    self.gen.append(self.faller())
-                    return
-            self.kill()
+            x, y = chooseground(200)
+            if x is not None:
+                self.move(x, y)
+                self.touchable = 1
+                self.gen.append(self.timeouter())
+                self.gen.append(self.faller())
+                return
+        self.kill()
 
-        def taken1(self, dragons):
-            if self.ticker:
-                return self.ticker.taken(dragons)
-            savedstate = self.savedstate
-            self.savedstate = None
-            if savedstate is not None:
-                boards.replace_boardgen(self.state_restorer(savedstate,
-                                                            self.savedscreens,
-                                                            self))
-                self.untouchable()
-                return -1
+    def taken1(self, dragons):
+        if self.ticker:
+            return self.ticker.taken(dragons)
+        savedpass = self.savedpass
+        self.savedpass = None
+        if savedpass is not None and timeline.can_rewind():
+            boards.replace_boardgen(self.state_restorer(savedpass,
+                                                        self.savedscreens,
+                                                        self))
+            self.untouchable()
+            return -1
 
-        def state_saver(self):
-            # called from BoardGen
-            self.savedstate = copygamestate()
-            while self.alive:
-                gamesrv.sprites[0] = ''
-                data = ''.join(gamesrv.sprites)
-                self.savedscreens.append(data)
-                yield 0
-                yield 0
-                self.savedscreens.append(data)
-                yield 0
-                yield 0
-            self.savedscreens = []
-        def state_restorer(self, savedstate, savedscreens, blinkme):
-            # called from BoardGen
-            from player import scoreboard
-            status = 0
-            for t in range(10):
-                if not (t & 1):
-                    gamesrv.sprites[0] = ''
-                    savedscreens.append(''.join(gamesrv.sprites))
-                time = boards.normal_frame()
-                for i in range(t):
-                    status += 1
-                    if status % 3 == 0 and blinkme.alive:
-                        if status % 6 == 0:
-                            blinkme.step(boards.bwidth, 0)
+    def state_saver(self):
+        # called from BoardGen.  Remember this moment.  This also runs
+        # while timeline.rewind() recomputes the past, so that every
+        # clock behaves as it did the first time.
+        if timeline.has_checkpoint():
+            self.savedpass = timeline.passes
+        while self.alive:
+            gamesrv.sprites[0] = b''
+            data = b''.join(gamesrv.sprites)
+            self.savedscreens.append(data)
+            yield 0
+            yield 0
+            self.savedscreens.append(data)
+            yield 0
+            yield 0
+        self.savedscreens = []
+    def state_restorer(self, savedpass, savedscreens, blinkme):
+        # called from BoardGen
+        from player import scoreboard
+        status = 0
+        for t in range(10):
+            if not (t & 1):
+                gamesrv.sprites[0] = b''
+                savedscreens.append(b''.join(gamesrv.sprites))
+            time = boards.normal_frame()
+            for i in range(t):
+                status += 1
+                if status % 3 == 0 and blinkme.alive:
+                    if status % 6 == 0:
+                        blinkme.step(boards.bwidth, 0)
+                    else:
+                        blinkme.step(-boards.bwidth, 0)
+                yield time
+        yield boards.force_singlegen()
+        yield 15.0
+        for p1 in BubPlayer.PlayerList:
+            del p1.dragons[:]
+        delay = 8.5
+        gamesrv.clearsprites()
+        while savedscreens:
+            gamesrv.sprites[:] = [b'', savedscreens.pop()]
+            if delay > 0.6:
+                delay *= 0.9
+            yield delay
+        yield 15.0
+        timeline.rewind(savedpass)   # replaces the board generators
+        # The clock is back too, at the moment it saved.  It must not
+        # show up again: without its saved moment it removes itself,
+        # as the copy of the clock did when the game state was copied.
+        for s in images.ActiveSprites:
+            if isinstance(s, Clock) and s.savedpass == savedpass:
+                s.savedpass = None
+        scoreboard()
+        yield 2.5
+
+class DragonGhost(ActiveSprite):
+    def __init__(self, entry):
+        ActiveSprite.__init__(self, entry.ico, entry.x, entry.y)
+
+    def setentry(self, entry):
+        #ico = images.make_darker(entry.ico, True)
+        self.lastx = self.x
+        self.lasty = self.y
+        self.move(entry.x, entry.y, entry.ico)
+        self.entry = entry
+        self.bubber = entry.d.bubber
+        self.dir = entry.dir
+        self.poplist = [self]
+
+    def integrate(self):
+        self.play(images.Snd.Shh)
+        for j in range(15):
+            DustStar(self.x, self.y, 0, -3, clock=j==14)
+
+    def disintegrate(self):
+        self.play(images.Snd.Shh)
+        dx = self.x - self.lastx
+        dy = self.y - self.lasty
+        if dx < -4: dx = -4
+        if dy < -4: dy = -4
+        if dx >  4: dx =  4
+        if dy >  4: dy =  4
+        for j in range(15):
+            DustStar(self.x, self.y, dx, dy, clock=j==14)
+        self.kill()
+
+    def bottom_up(self):
+        return self.entry.dcap['gravity'] < 0.0
+
+class SavedDragonEntry(object):
+    __slots__ = ['d', 'x', 'y', 'ico', 'flag', 'dir', 'dcap']
+    def __init__(self, d, flag, dir, dcap):
+        self.d = d
+        self.x = d.x
+        self.y = d.y
+        self.ico = d.ico
+        self.flag = flag
+        self.dir = dir
+        self.dcap = dcap
+
+class SavedFrameEntry(object):
+    __slots__ = ['saved_next', 'tick', 'dragonlist', 'shoots1']
+    def __init__(self, tick, dragonlist):
+        self.saved_next = None
+        self.tick = tick
+        self.dragonlist = dragonlist
+        self.shoots1 = []
+
+class BigClockTicker:
+    dragonlist = None
+    tick = 1000
+
+    def __init__(self):
+        global random
+        random = random_module.Random()
+        localrandom = DustStar.localrandom
+        self.state = 'pre'
+        self.randombase1 = hash(localrandom.random()) * 914971
+        self.randombase2 = hash(localrandom.random()) * 914971
+        self.saved_next = None
+        self.saved_last = self
+        random.seed(self.randombase1)
+        random_module.seed(self.randombase2)
+        self.latest_entries = {}
+
+    def common_tick(self, entry):
+        self.dragonlist = entry.dragonlist
+        random.seed(self.randombase1 - entry.tick)
+        random_module.seed(self.randombase2 - entry.tick)
+        bonus_frame_tick()
+        random.seed(self.randombase1 + entry.tick)
+        random_module.seed(self.randombase2 + entry.tick)
+
+    def save_frame_tick(self):
+        entry = self.save_frame()
+        self.common_tick(entry)
+
+    def save_frame(self):
+        from player import Dragon
+        from bubbles import DragonBubble
+        tick = self.saved_last.tick + 1
+        dragonlist = []
+        new_entries = {}
+        for bubber in BubPlayer.PlayerList:
+            if bubber.isplaying():
+                for d in bubber.dragons:
+                    try:
+                        dcap = self.latest_entries[d].dcap
+                    except KeyError:
+                        dcap = None
+                    dir = getattr(d, 'dir', 1)
+                    cur_dcap = getattr(d, 'dcap', Dragon.DCAP)
+                    if dcap != cur_dcap:
+                        dcap = cur_dcap.copy()
+                    if isinstance(d, Dragon):
+                        if d.monstervisible():
+                            flag = 'visible'
                         else:
-                            blinkme.step(-boards.bwidth, 0)
-                    yield time
-            yield boards.force_singlegen()
-            yield 15.0
-            for p1 in BubPlayer.PlayerList:
-                del p1.dragons[:]
-            delay = 8.5
-            gamesrv.clearsprites()
-            while savedscreens:
-                gamesrv.sprites[:] = ['', savedscreens.pop()]
-                if delay > 0.6:
-                    delay *= 0.9
-                yield delay
-            yield 15.0
-            restoregamestate(savedstate)
-            scoreboard()
-            yield 2.5
+                            flag = 'hidden'
+                    else:
+                        flag = 'other'
+                    entry = SavedDragonEntry(d, flag, dir, dcap)
+                    new_entries[d] = entry
+                    dragonlist.append(entry)
+        self.latest_entries = new_entries
+        entry = SavedFrameEntry(tick, dragonlist)
+        self.saved_last.saved_next = entry
+        self.saved_last = entry
+        return entry
 
-    class DragonGhost(ActiveSprite):
-        def __init__(self, entry):
-            ActiveSprite.__init__(self, entry.ico, entry.x, entry.y)
+    def taken(self, dragons):
+        boards.replace_boardgen(self.jump_to_past())
 
-        def setentry(self, entry):
-            #ico = images.make_darker(entry.ico, True)
-            self.lastx = self.x
-            self.lasty = self.y
-            self.move(entry.x, entry.y, entry.ico)
-            self.entry = entry
-            self.bubber = entry.d.bubber
-            self.dir = entry.dir
-            self.poplist = [self]
+    def jump_to_past(self):
+        self.state = 'restoring'
+        boards.replace_boardgen(boards.next_board(fastreenter=True), 1)
 
-        def integrate(self):
-            self.play(images.Snd.Shh)
-            for j in range(15):
-                DustStar(self.x, self.y, 0, -3, clock=j==14)
+    def restore(self):
+        self.ghosts = {}
+        random.seed(self.randombase1)
+        random_module.seed(self.randombase2)
 
-        def disintegrate(self):
-            self.play(images.Snd.Shh)
-            dx = self.x - self.lastx
-            dy = self.y - self.lasty
-            if dx < -4: dx = -4
-            if dy < -4: dy = -4
-            if dx >  4: dx =  4
-            if dy >  4: dy =  4
-            for j in range(15):
-                DustStar(self.x, self.y, dx, dy, clock=j==14)
-            self.kill()
+    def show_ghosts(self, dragonlist, interact):
+        new_ghosts = {}
+        for entry in dragonlist:
+            try:
+                ghost = self.ghosts[entry.d]
+            except KeyError:
+                ghost = DragonGhost(entry)
+            ghost.setentry(entry)
+            new_ghosts[entry.d] = ghost
+            if (interact and entry.flag != 'other' and
+                not entry.dcap.get('infinite_shield')):
+                touching = images.touching(entry.x+1, entry.y+1, 30, 30)
+                touching.reverse()
+                for s in touching:
+                    if isinstance(s, interact):
+                        s.touched(ghost)
+        for d, ghost in list(self.ghosts.items()):
+            if d not in new_ghosts:
+                ghost.kill()
+        self.ghosts = new_ghosts
 
-        def bottom_up(self):
-            return self.entry.dcap['gravity'] < 0.0
+    def restore_frame_tick(self):
+        from bubbles import Bubble, DragonBubble
+        interact = (Bonus, Parabolic2, Bubble)
+        self.save_frame()
+        entry = self.saved_next
+        self.saved_next = entry.saved_next
+        self.common_tick(entry)
+        self.show_ghosts(entry.dragonlist, interact)
+        for args in entry.shoots1:
+            DragonBubble(*args)
+        if self.state == 'restoring' and self.ghosts:
+            self.state = 'post'
+            for ghost in list(self.ghosts.values()):
+                ghost.integrate()
 
-    class SavedDragonEntry(object):
-        __slots__ = ['d', 'x', 'y', 'ico', 'flag', 'dir', 'dcap']
-        def __init__(self, d, flag, dir, dcap):
-            self.d = d
-            self.x = d.x
-            self.y = d.y
-            self.ico = d.ico
-            self.flag = flag
-            self.dir = dir
-            self.dcap = dcap
-
-    class SavedFrameEntry(object):
-        __slots__ = ['saved_next', 'tick', 'dragonlist', 'shoots1']
-        def __init__(self, tick, dragonlist):
-            self.saved_next = None
-            self.tick = tick
-            self.dragonlist = dragonlist
-            self.shoots1 = []
-
-    class BigClockTicker:
-        dragonlist = None
-        tick = 1000
-
-        def __init__(self):
-            global random
-            random = random_module.Random()
-            localrandom = DustStar.localrandom
-            self.state = 'pre'
-            self.randombase1 = hash(localrandom.random()) * 914971
-            self.randombase2 = hash(localrandom.random()) * 914971
-            self.saved_next = None
-            self.saved_last = self
-            random.seed(self.randombase1)
-            random_module.seed(self.randombase2)
-            self.latest_entries = {}
-
-        def common_tick(self, entry):
-            self.dragonlist = entry.dragonlist
-            random.seed(self.randombase1 - entry.tick)
-            random_module.seed(self.randombase2 - entry.tick)
-            bonus_frame_tick()
-            random.seed(self.randombase1 + entry.tick)
-            random_module.seed(self.randombase2 + entry.tick)
-
-        def save_frame_tick(self):
-            entry = self.save_frame()
-            self.common_tick(entry)
-
-        def save_frame(self):
-            from player import Dragon
-            from bubbles import DragonBubble
-            tick = self.saved_last.tick + 1
-            dragonlist = []
-            new_entries = {}
-            for bubber in BubPlayer.PlayerList:
-                if bubber.isplaying():
-                    for d in bubber.dragons:
-                        try:
-                            dcap = self.latest_entries[d].dcap
-                        except KeyError:
-                            dcap = None
-                        dir = getattr(d, 'dir', 1)
-                        cur_dcap = getattr(d, 'dcap', Dragon.DCAP)
-                        if dcap != cur_dcap:
-                            dcap = cur_dcap.copy()
-                        if isinstance(d, Dragon):
-                            if d.monstervisible():
-                                flag = 'visible'
-                            else:
-                                flag = 'hidden'
-                        else:
-                            flag = 'other'
-                        entry = SavedDragonEntry(d, flag, dir, dcap)
-                        new_entries[d] = entry
-                        dragonlist.append(entry)
-            self.latest_entries = new_entries
-            entry = SavedFrameEntry(tick, dragonlist)
-            self.saved_last.saved_next = entry
-            self.saved_last = entry
-            return entry
-
-        def taken(self, dragons):
-            boards.replace_boardgen(self.jump_to_past())
-
-        def jump_to_past(self):
-            self.state = 'restoring'
-            boards.replace_boardgen(boards.next_board(fastreenter=True), 1)
-
-        def restore(self):
-            self.ghosts = {}
-            random.seed(self.randombase1)
-            random_module.seed(self.randombase2)
-
-        def show_ghosts(self, dragonlist, interact):
-            new_ghosts = {}
-            for entry in dragonlist:
-                try:
-                    ghost = self.ghosts[entry.d]
-                except KeyError:
-                    ghost = DragonGhost(entry)
-                ghost.setentry(entry)
-                new_ghosts[entry.d] = ghost
-                if (interact and entry.flag != 'other' and
-                    not entry.dcap.get('infinite_shield')):
-                    touching = images.touching(entry.x+1, entry.y+1, 30, 30)
-                    touching.reverse()
-                    for s in touching:
-                        if isinstance(s, interact):
-                            s.touched(ghost)
-            for d, ghost in list(self.ghosts.items()):
-                if d not in new_ghosts:
-                    ghost.kill()
-            self.ghosts = new_ghosts
-
-        def restore_frame_tick(self):
-            from bubbles import Bubble, DragonBubble
-            interact = (Bonus, Parabolic2, Bubble)
-            self.save_frame()
-            entry = self.saved_next
-            self.saved_next = entry.saved_next
-            self.common_tick(entry)
-            self.show_ghosts(entry.dragonlist, interact)
-            for args in entry.shoots1:
-                DragonBubble(*args)
-            if self.state == 'restoring' and self.ghosts:
-                self.state = 'post'
-                for ghost in list(self.ghosts.values()):
-                    ghost.integrate()
-
-        def flush_ghosts(self):
-            if self.latest_entries:
-                for ghost in list(self.ghosts.values()):
-                    ghost.disintegrate()
-                self.latest_entries.clear()
-            self.dragonlist = None
+    def flush_ghosts(self):
+        if self.latest_entries:
+            for ghost in list(self.ghosts.values()):
+                ghost.disintegrate()
+            self.latest_entries.clear()
+        self.dragonlist = None
 
 bigclockticker = None
 

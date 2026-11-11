@@ -12,8 +12,9 @@ PYTHON=python3
 
 export # we export all variales to sub-makes
 
+# bubbob/statesaver.c is not built: the Time Machine bonus no longer
+# needs it (see bubbob/timeline.py), and it is Python 2 C code.
 all:
-	if [ -e bubbob ]; then make -C bubbob; fi
 	make -C display
 	@echo -------------------------------------------------------------
 	@echo \'make\' successful.
