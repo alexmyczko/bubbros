@@ -1,4 +1,4 @@
-import sys
+import os, sys
 from modes import musichtmloptiontext as htmloptionstext
 from pygame.locals import *
 import pygame.mixer
@@ -14,6 +14,12 @@ class Sound:
     has_sound = has_music = 0   # until initialized
 
     def __init__(self):
+        if not pygame.display.get_init():
+            # Initializing SDL makes it catch SIGINT and SIGTERM and turn
+            # them into a quit event, which only the pygame display driver
+            # reads.  With another display driver nothing reads it, and
+            # the client could not be stopped with kill.
+            os.environ.setdefault('SDL_NO_SIGNAL_HANDLERS', '1')
         try:
             pygame.mixer.init()
         except pygame.error as e:

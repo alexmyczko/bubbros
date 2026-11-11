@@ -31,6 +31,16 @@ class Display(BaseDisplay):
             return []
 
 
+def imperror():
+    # modes.findmode() skips a driver whose imperror() returns a message.
+    # Without an X server (a Wayland-only session, a text console) the
+    # client must fall back to pygame or GTK instead of failing here.
+    import os
+    if not os.environ.get('DISPLAY'):
+        return 'no X display (DISPLAY is not set)'
+    return None
+
+
 def htmloptionstext(nameval):
     return '''
 <%s> Use the shared memory extension</input><%s><br>
