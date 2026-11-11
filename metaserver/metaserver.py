@@ -3,19 +3,26 @@ import os, sys, time, random
 from select import select
 from io import StringIO, BytesIO
 from weakref import WeakValueDictionary
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [HERE, os.path.dirname(HERE)]
 from metastruct import *
 from common import httpserver, stdlog
 
 if __name__ == '__main__':
-    os.chdir(os.path.dirname(sys.argv[0]) or os.curdir)
+    os.chdir(HERE)
 
 META_SERVER_HTTP_PORT = 8050
 META_SERVER_PORT = 8055
 META_SERVER_UDP_PORT = 8055
-IMAGE_DIR = "../bubbob/doc/images"
+# the icon shown next to each game: the bonus images made by
+# ../bubbob/doc/bonus-doc.py if they exist, else the dragon of this page
+IMAGE_DIR = os.path.join(HERE, os.pardir, 'bubbob', 'doc', 'images')
 ICONS = [open(os.path.join(IMAGE_DIR, s), 'rb').read()
-         for s in os.listdir(IMAGE_DIR) if s.endswith('.png')]
-assert ICONS, "you need to run ../bubbob/doc/bonus-doc.py"
+         for s in sorted(os.listdir(IMAGE_DIR)) if s.endswith('.png')] \
+        if os.path.isdir(IMAGE_DIR) else []
+if not ICONS:
+    ICONS = [open(os.path.join(HERE, 'mbub.png'), 'rb').read()]
 MAX_SERVERS = 50
 MAX_CONNEXIONS = 60
 
@@ -214,7 +221,7 @@ def txtfilter(s, maxlen=200):
                               "^_`abcdefghijklmnopqrstuvwxyz{|}"]
     return ''.join(l)
 
-f = open('index.html', 'r')
+f = open(os.path.join(HERE, 'index.html'), 'r')
 HEADER, ROW, FOOTER = f.read().split('\\')
 f.close()
 
@@ -303,8 +310,8 @@ httpserver.register('', indexloader)
 httpserver.register('index.html', indexloader)
 httpserver.register('bub-n-bros.html', indexloader)
 httpserver.register('ico', icoloader)
-httpserver.register('mbub.png', httpserver.fileloader('mbub.png', 'image/png'))
-httpserver.register('home.png', httpserver.fileloader('home.png', 'image/png'))
+httpserver.register('mbub.png', httpserver.fileloader(os.path.join(HERE, 'mbub.png'), 'image/png'))
+httpserver.register('home.png', httpserver.fileloader(os.path.join(HERE, 'home.png'), 'image/png'))
 
 def openhttpsocket(port = META_SERVER_HTTP_PORT):
     from http.server import HTTPServer
@@ -349,16 +356,46 @@ def mainloop():
                     print("-"*60)
 
 
+USAGE = '''usage: metaserver.py [-f] [--port N] [--http N] [--udp N]
+  -f          detach (run in the background)
+  --port N    TCP port for game servers and clients (default %d)
+  --http N    port of the web page listing the games (default %d)
+  --udp N     UDP port (default: the TCP port)
+Clients find it with BUBBROS_METASERVER=host:port:httpport or the Options
+page of the game.''' % (META_SERVER_PORT, META_SERVER_HTTP_PORT)
+
+def parse_args(argv):
+    import getopt
+    try:
+        opts, args = getopt.getopt(argv, 'fh', ['port=', 'http=', 'udp=', 'help'])
+    except getopt.GetoptError as e:
+        sys.exit('metaserver.py: %s\n%s' % (e, USAGE))
+    if args:
+        sys.exit(USAGE)
+    result = {'detach': False, 'port': META_SERVER_PORT,
+              'http': META_SERVER_HTTP_PORT, 'udp': None}
+    for key, value in opts:
+        if key == '-f':
+            result['detach'] = True
+        elif key in ('-h', '--help'):
+            print(USAGE)
+            sys.exit(0)
+        else:
+            result[key[2:]] = int(value)
+    if result['udp'] is None:
+        result['udp'] = result['port']
+    return result
+
 if __name__ == '__main__':
-    metaserver = MetaServer()
-    if sys.argv[1:2] == ['-f']:
+    args = parse_args(sys.argv[1:])
+    metaserver = MetaServer(args['port'], args['udp'])
+    if args['detach']:
         metaserver.detach()
     try:
-        openhttpsocket()
+        openhttpsocket(args['http'])
         print('listening to client port tcp %d / http %d / udp %d.' % (
-            META_SERVER_PORT,
-            META_SERVER_HTTP_PORT,
-            META_SERVER_UDP_PORT))
+            args['port'], args['http'], args['udp']))
+        sys.stdout.flush()
         mainloop()
     finally:
         if metaserver.ServersList:
