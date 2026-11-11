@@ -1,6 +1,7 @@
 
 import random, math, time
 import gamesrv
+import timeline    # logs the inputs, for the Time Machine bonus
 import images
 import boards
 import bubbles
@@ -771,6 +772,7 @@ class BubPlayer(gamesrv.Player):
             for key, value in list(self.iconnames.items()):
                 icons[key] = images.sprget((flip, value))
 
+    @timeline.recorded
     def setplayername(self, name):
         name = name.strip()
         for t in [0, 1]:
@@ -787,6 +789,7 @@ class BubPlayer(gamesrv.Player):
         self.nameicons.reverse()
         scoreboard()
 
+    @timeline.recorded
     def playerjoin(self):
         n = self.pn
         if not self.icons:
@@ -809,6 +812,7 @@ class BubPlayer(gamesrv.Player):
         images.Snd.LetsGo.play()
         #BubPlayer.LatestLetsGo = BubPlayer.FrameCounter
 
+    @timeline.recorded
     def playerleaves(self):
         print('Closing position #%d.' % self.pn)
         self.savecaps()
@@ -878,24 +882,32 @@ class BubPlayer(gamesrv.Player):
                 if key not in ('teleport', 'jumpdown'):
                     del self.pcap[key]
 
+    @timeline.recorded
     def kLeft(self):
         if self.key_left <= 1:
             self.key_left = 1000000
+    @timeline.recorded
     def kmLeft(self):
         self.key_left = (self.key_left == 1000000)
+    @timeline.recorded
     def kRight(self):
         if self.key_right <= 1:
             self.key_right = 1000000
+    @timeline.recorded
     def kmRight(self):
         self.key_right = (self.key_right == 1000000)
+    @timeline.recorded
     def kJump(self):
         if self.key_jump <= 1:
             self.key_jump = 1000000
+    @timeline.recorded
     def kmJump(self):
         self.key_jump = (self.key_jump == 1000000)
+    @timeline.recorded
     def kFire(self):
         if self.key_fire <= 1:
             self.key_fire = 1000000
+    @timeline.recorded
     def kmFire(self):
         self.key_fire = (self.key_fire == 1000000)
 

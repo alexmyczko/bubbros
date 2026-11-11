@@ -89,16 +89,9 @@ class BubBobGame(gamesrv.Game):
         if self.metaregister:
             self.do_updatemetaserver()
         frametime = 0.0
+        import boards
         for i in range(500):
-            import boards
-            for gen in boards.BoardGen[:]:
-                try:
-                    frametime += next(gen)
-                except StopIteration:
-                    try:
-                        boards.BoardGen.remove(gen)
-                    except ValueError:
-                        pass
+            frametime += boards.run_pass()
             if frametime >= 1.1:
                 break
         else:

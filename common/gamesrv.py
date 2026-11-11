@@ -178,6 +178,8 @@ class Sample(DataChunk):
               DataChunk.getmd5def(self, fileid, datatail, offset=28))
 
   def play(self, lvolume=1.0, rvolume=None, pad=0.5, singleclient=None):
+    if sounds_muted:
+      return    # e.g. while the game recomputes the past (timeline.py)
     if rvolume is None:
       rvolume = lvolume
     lvolume *= 2.0*(1.0-pad)
@@ -860,6 +862,7 @@ sprites = [b'']
 sprites_by_n = {}
 recording = None
 game = None
+sounds_muted = 0
 serversockets = {}
 socketsbyrole = {}
 socketports   = {}
