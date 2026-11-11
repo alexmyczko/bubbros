@@ -8,7 +8,10 @@ from Xlib import X, display
 
 
 # -*-*- SLOOWWW -*-*-
-import psyco; psyco.full()
+try:
+    import psyco; psyco.full()
+except ImportError:
+    pass    # psyco only ever existed for Python 2
 
 
 class Display:
@@ -44,8 +47,8 @@ class Display:
         self.motionev = None
         self.dpy.flush()
 
-        pixel = "\x00\x00\x80"
-        hole  = "\x01\x01\x01"
+        pixel = b"\x00\x00\x80"
+        hole  = b"\x01\x01\x01"
         self.taskbkgnd = self.pixmap(32, 32,
                                      ((pixel+hole)*16 + (hole+pixel)*16) * 16,
                                      0x010101)
@@ -60,9 +63,9 @@ class Display:
             bitmap_pad = 16
         scanline = ((w+bitmap_pad-1) & ~(bitmap_pad-1)) // 8;
         if colorkey >= 0:
-            key = (chr(colorkey >> 16) +
-                   chr((colorkey>>8) & 0xFF) +
-                   chr(colorkey & 0xFF))
+            key = bytes([colorkey >> 16,
+                         (colorkey>>8) & 0xFF,
+                         colorkey & 0xFF])
         else:
             key = None
         if depth == 15:
@@ -89,7 +92,7 @@ class Display:
                         if data[src:src+3] == key:
                             # transparent
                             maskline |= shifter
-                        elif ord(data[src+color]) & plane:
+                        elif data[src+color] & plane:
                             imgline |= shifter
                         shifter <<= 1
                         src += 3
@@ -97,14 +100,13 @@ class Display:
                     maskdata.append(long2string(maskline, scanline))
                 plane //= 2
 
-        imgdata = ''.join(imgdata)
+        imgdata = b''.join(imgdata)
         if colorkey >= 0:
-            maskdata = ''.join(maskdata)
+            maskdata = b''.join(maskdata)
             mask = self.win.create_pixmap(w, h, depth)
             mask.put_image(self.gc, 0, 0, w, h, X.XYPixmap, depth, 0, maskdata)
         else:
             mask = None
-        imgdata = ''.join(imgdata)
         image = self.win.create_pixmap(w, h, depth)
         image.put_image(self.gc, 0, 0, w, h, X.XYPixmap, depth, 0, imgdata)
         image.mask = mask
@@ -201,4 +203,4 @@ class Display:
 
 
 def long2string(bits, strlen):
-    return ''.join([chr((bits>>n)&0xFF) for n in range(0, 8*strlen, 8)])
+    return bytes([(bits>>n)&0xFF for n in range(0, 8*strlen, 8)])
