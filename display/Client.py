@@ -16,8 +16,8 @@ LOCALDIR = os.path.dirname(os.path.abspath(LOCALDIR))
 sys.path.insert(0, os.path.dirname(LOCALDIR))
 sys.path.insert(0, LOCALDIR)
 import common
-from . import pclient
-from . import modes
+import pclient
+import modes
 
 
 UdpLookForServer = [
@@ -61,9 +61,9 @@ def parse_cmdline(argv):
     longopts = ['display=', 'sound=', 'music=', 'help', 'tcp', 'udp',
                 'cfg=', 'metaserver', 'port=']
     for info in modes.graphicmodeslist() + modes.soundmodeslist():
-        short, int = info.getformaloptions()
+        short, longopt = info.getformaloptions()
         shortopts += short
-        longopts += int
+        longopts += longopt
     try:
         from getopt import gnu_getopt as getopt
     except ImportError:

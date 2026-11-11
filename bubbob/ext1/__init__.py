@@ -364,7 +364,7 @@ class Arkanoid:
                 d.kill()
 
     def order_paddles(self):
-        self.order.sort()
+        self.order.sort(key=lambda item: item[0])
         self.order.reverse()
         for timeleft, paddle in self.order:
             try:

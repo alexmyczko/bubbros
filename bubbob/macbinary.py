@@ -82,6 +82,8 @@ class MacBinary:
         numtypes = numtypes + 1
         for rtype, num, ofsref in [struct.unpack(">4sHH", fmap.read(8))
                                    for i in range(numtypes)]:
+            # four-letter type codes like 'LEVL'; callers use str keys
+            rtype = rtype.decode('latin-1')
             assert rtype not in self.dtypes
             self.dtypes[rtype] = TypeList(rtype, fmap, fdata, ofsname,
                                          ofstype + ofsref, num + 1)
@@ -118,7 +120,7 @@ class Subfile:
         if size is None or self.position + size > self.length:
             size = self.length - self.position
         if size <= 0:
-            return ''
+            return b''
         self.f.seek(self.start + self.position)
         self.position = self.position + size
         return self.f.read(size)
@@ -170,8 +172,8 @@ def image2rgb(image):
     result1 = []
     for line in image:
         for r, g, b in line:
-            result1.append(chr(int(r)) + chr(int(g)) + chr(int(b)))
-    return len(image[0]), len(image), ''.join(result1)
+            result1.append(bytes((int(r), int(g), int(b))))
+    return len(image[0]), len(image), b''.join(result1)
 
 
 class clutResource(Resource):
@@ -209,7 +211,7 @@ class ppatResource(Resource):
             imgline = []
             for x in range(w):
                 n = x//pixels_per_byte
-                idx = ((ord(line[n]) >> ((pixels_per_byte - 1 - x%pixels_per_byte) * bits_per_pixel))
+                idx = ((line[n] >> ((pixels_per_byte - 1 - x%pixels_per_byte) * bits_per_pixel))
                        & ((1<<bits_per_pixel)-1))
                 imgline.append(colormap[idx])
             image.append(imgline)
@@ -232,7 +234,7 @@ class LEVLResource(Resource):
         walls = []
         for y in range(self.HEIGHT):
             line = f.read(self.WIDTH//8)
-            line = [self.WALLS[(ord(line[x//8]) >> (x%8)) & 1]
+            line = [self.WALLS[(line[x//8] >> (x%8)) & 1]
                     for x in range(self.WIDTH)]
             walls.append(''.join(line))
         result['walls'] = '\n'.join(walls)
@@ -240,7 +242,7 @@ class LEVLResource(Resource):
         winds = []
         for y in range(self.HEIGHT):
             line = f.read(self.WIDTH)
-            line = [self.WINDS[ord(v)] for v in line]
+            line = [self.WINDS[v] for v in line]
             winds.append(''.join(line))
         result['winds'] = '\n'.join(winds)
 
@@ -255,6 +257,6 @@ class LEVLResource(Resource):
 
         result['level'], = struct.unpack('>H', f.read(2))
         for i in range(8):
-            result[self.FLAGS[i]] = ord(f.read(1))
+            result[self.FLAGS[i]] = f.read(1)[0]
         
         return result

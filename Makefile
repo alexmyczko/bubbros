@@ -8,18 +8,19 @@ MANGROUP=root
 MANDIR=/usr/local/man
 
 INSTALL=install
-PYTHON=python
+PYTHON=python3
 
 export # we export all variales to sub-makes
 
+# bubbob/statesaver.c is not built: the Time Machine bonus no longer
+# needs it (see bubbob/timeline.py), and it is Python 2 C code.
 all:
-	if [ -e bubbob ]; then make -C bubbob; fi
 	make -C display
 	@echo -------------------------------------------------------------
 	@echo \'make\' successful.
 	@echo ' '
-	@echo ' Start the game interactively with: python BubBob.py'
-	@if [ -e bubbob ]; then echo ' Server only (pure command-line): python bubbob/bb.py --help'; else echo ' Only the client is installed here.'; fi
+	@echo ' Start the game interactively with: $(PYTHON) BubBob.py'
+	@if [ -e bubbob ]; then echo ' Server only (pure command-line): $(PYTHON) bubbob/bb.py --help'; else echo ' Only the client is installed here.'; fi
 	@echo ' '
 	@echo -------------------------------------------------------------
 
@@ -28,7 +29,7 @@ clean:
 	-rm -f `find -name "*.py[co]"`
 	-rm -fr `find -name "build"`
 	make -C doc clean
-	cd bubbob/images && python buildcolors.py -c
+	cd bubbob/images && $(PYTHON) buildcolors.py -c
 	rm -fr cache
 
 sync: magma-sync codespeak-sync

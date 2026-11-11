@@ -39,7 +39,7 @@ class BrickEyes(BubblingEyes):
         self.orientation = 1,0
         xmin = 2              - min([x for x,y in self.pat])
         xmax = boards.width-3 - max([x for x,y in self.pat])
-        x = int(random.normalvariate(oldsprite.x, boards.bwidth/4))
+        x = int(random.normalvariate(oldsprite.x, boards.bwidth//4))
         x = (x+HALFCELL) // CELL
         if x<xmin: x=xmin
         if x>xmax: x=xmax

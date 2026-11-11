@@ -1,24 +1,26 @@
 
 import io
 
+# Images are binary .ppm data (bytes): a short header, then 3 bytes per pixel.
+
 def decodepixmap(data):
-    f = io.StringIO(data)
+    f = io.BytesIO(data)
     sig = f.readline().strip()
-    assert sig == "P6"
+    assert sig == b"P6"
     while 1:
         line = f.readline().strip()
-        if not line.startswith('#'):
+        if not line.startswith(b'#'):
             break
     wh = line.split()
     w, h = list(map(int, wh))
     sig = f.readline().strip()
-    assert sig == "255"
+    assert sig == b"255"
     data = f.read()
     f.close()
     return w, h, data
 
 def encodepixmap(w, h, data):
-    return 'P6\n%d %d\n255\n%s' % (w, h, data)
+    return b'P6\n%d %d\n255\n' % (w, h) + data
 
 def cropimage(xxx_todo_changeme, xxx_todo_changeme1):
     (w, h, data) = xxx_todo_changeme
@@ -30,39 +32,39 @@ def cropimage(xxx_todo_changeme, xxx_todo_changeme1):
              for p in range(y1*scanline + x1*3,
                             (y1+h1)*scanline + x1*3,
                             scanline)]
-    return w1, h1, ''.join(lines)
+    return w1, h1, b''.join(lines)
 
 def vflip(w, h, data):
     scanline = w*3
     lines = [data[p:p+scanline] for p in range(0, len(data), scanline)]
     lines.reverse()
-    return ''.join(lines)
+    return b''.join(lines)
 
 def hflip(w, h, data):
     scanline = w*3
-    lines = [''.join([data[p:p+3] for p in range(p1+scanline-3, p1-3, -3)])
+    lines = [b''.join([data[p:p+3] for p in range(p1+scanline-3, p1-3, -3)])
              for p1 in range(0, len(data), scanline)]
-    return ''.join(lines)
+    return b''.join(lines)
 
 def rotate_cw(w, h, data):
     scanline = w*3
     lastline = len(data) - scanline
-    lines = [''.join([data[p:p+3] for p in range(lastline + p1, -1, -scanline)])
+    lines = [b''.join([data[p:p+3] for p in range(lastline + p1, -1, -scanline)])
              for p1 in range(0, scanline, 3)]
-    return ''.join(lines)
+    return b''.join(lines)
 
 def rotate_ccw(w, h, data):
     scanline = w*3
-    lines = [''.join([data[p:p+3] for p in range(p1, len(data), scanline)])
+    lines = [b''.join([data[p:p+3] for p in range(p1, len(data), scanline)])
              for p1 in range(scanline-3, -3, -3)]
-    return ''.join(lines)
+    return b''.join(lines)
 
 def rotate_180(w, h, data):
     scanline = w*3
-    lines = [''.join([data[p:p+3] for p in range(p1+scanline-3, p1-3, -3)])
+    lines = [b''.join([data[p:p+3] for p in range(p1+scanline-3, p1-3, -3)])
              for p1 in range(0, len(data), scanline)]
     lines.reverse()
-    return ''.join(lines)
+    return b''.join(lines)
 
 def makebkgnd(w, h, data):
     scanline = 3*w
@@ -70,27 +72,24 @@ def makebkgnd(w, h, data):
     for position in range(0, scanline*h, scanline):
         line = []
         for p in range(position, position+scanline, 3):
-            line.append(2 * (chr(ord(data[p  ]) >> 3) +
-                             chr(ord(data[p+1]) >> 3) +
-                             chr(ord(data[p+2]) >> 3)))
-        line = ''.join(line)
+            line.append(2 * bytes([data[p  ] >> 3,
+                                   data[p+1] >> 3,
+                                   data[p+2] >> 3]))
+        line = b''.join(line)
         result.append(line)
         result.append(line)
-    return w*2, h*2, ''.join(result)
+    return w*2, h*2, b''.join(result)
 
-translation_darker = ('\x00\x01' + '\x00'*126 +
-                      ''.join([chr(n//4) for n in range(0,128)]))
-translation_dragon = translation_darker[:255] + '\xC0'
+translation_darker = (b'\x00\x01' + b'\x00'*126 +
+                      bytes([n//4 for n in range(0,128)]))
+translation_dragon = translation_darker[:255] + b'\xC0'
 
 def make_dark(xxx_todo_changeme2, translation):
     (w, h, data) = xxx_todo_changeme2
     return w, h, data.translate(translation)
 
 def col(xxx_todo_changeme3):
-    (r, g, b) = xxx_todo_changeme3
-    r = ord(r)
-    g = ord(g)
-    b = ord(b)
+    (r, g, b) = xxx_todo_changeme3      # unpacking bytes gives ints
     return ((g>>2 + r>>3) << 24) | (b << 16) | (g << 8) | r
 
 def imagezoomer(w, h, data):
@@ -163,5 +162,5 @@ def imagezoomer(w, h, data):
 
             # ______________________________
             result.append(revcache[p1])
-    data = ''.join(result)
+    data = b''.join(result)
     yield (rw, rh, data)

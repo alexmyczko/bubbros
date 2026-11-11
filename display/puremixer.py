@@ -1,4 +1,7 @@
-import sys, audioop
+import sys
+# audioop was removed from the standard library in Python 3.13; the
+# audioop-lts package (python3-audioop-lts in Debian) provides it again.
+import audioop
 
 
 class PureMixer:
@@ -13,18 +16,18 @@ class PureMixer:
                        channels=1, byteorder=None):
         """Open the mixer and set its parameters."""
         self.freq = freq
-        self.bytes = bits/8
+        self.bytes = bits//8
         self.signed = signed
         self.channels = channels
         self.byteorder = byteorder or sys.byteorder
         self.parameters = (freq, self.bytes, signed, channels, self.byteorder)
         self.bytespersample = channels*self.bytes
-        self.queue = '\x00' * self.bytes
+        self.queue = b'\x00' * self.bytes
 
     def resample(self, data, freq=44100, bits=8, signed=0,
                              channels=1, byteorder=None):
         "Convert a sample to the mixer's own format."
-        bytes = bits/8
+        bytes = bits//8
         byteorder = byteorder or sys.byteorder
         if (freq, bytes, signed, channels, byteorder) == self.parameters:
             return data
@@ -40,7 +43,7 @@ class PureMixer:
         while channels > self.channels:
             assert channels % 2 == 0
             data = audioop.tomono(data, bytes, 0.5, 0.5)
-            channels /= 2
+            channels //= 2
         # resample to self.freq
         if freq != self.freq:
             data, ignored = audioop.ratecv(data, bytes, channels,
@@ -82,13 +85,13 @@ class PureMixer:
         """Mix the next batch buffer.
         Each object in the mixer_channels list must be a file-like object
         with a 'read(size)' method."""
-        data = ''
+        data = b''
         already_seen = {}
         channels = mixer_channels[:]
         channels.reverse()
         for c in channels:
             if c in already_seen:
-                data1 = ''
+                data1 = b''
             else:
                 data1 = c.read(bufsize)
                 already_seen[c] = 1
@@ -101,14 +104,14 @@ class PureMixer:
                     mixer_channels.remove(c)
                 except ValueError:
                     pass
-        data += self.queue * ((bufsize - len(data)) / self.bytes)
+        data += self.queue * ((bufsize - len(data)) // self.bytes)
         self.queue = data[-self.bytes:]
         return data
 
 
 def byteswap(data, byte):
     if byte == 1:
-        return
+        return data
     if byte == 2:
         typecode = 'h'
     elif byte == 4:
@@ -120,4 +123,4 @@ def byteswap(data, byte):
     if a.itemsize != byte:
         raise ValueError('endianness convertion failed')
     a.byteswap()
-    return a.tostring()
+    return a.tobytes()

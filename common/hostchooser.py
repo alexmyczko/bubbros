@@ -3,6 +3,7 @@ import time, select, sys
 from errno import ETIMEDOUT
 
 UDP_PORT     = 8056
+# This ping protocol is plain text: str here, encoded only at the socket.
 PING_MESSAGE = "pclient-game-ping"
 PONG_MESSAGE = "server-game-pong"
 
@@ -28,11 +29,11 @@ def answer_ping(s, descr, addr, extra='', httpport=''):
     except error as e:
         print('ping error:', str(e), file=sys.stderr)
         return
-    if data == PING_MESSAGE:
+    if data == PING_MESSAGE.encode('ascii'):
         print("ping by", source, file=sys.stderr)
         answer = '%s:%s:%s:%s:%s:%s' % (PONG_MESSAGE, descr,
                                         addr[0], addr[1], extra, httpport)
-        s.sendto(answer, source)
+        s.sendto(answer.encode('utf-8'), source)
     else:
         print("unexpected data on UDP port %d by" % UDP_PORT, source, file=sys.stderr)
 
@@ -43,7 +44,7 @@ def pick(hostlist, delay=1):
     for host in hostlist:
         print("* Looking for a server on %s... " % host, file=sys.stderr)
         try:
-            s.sendto(PING_MESSAGE, (host, UDP_PORT))
+            s.sendto(PING_MESSAGE.encode('ascii'), (host, UDP_PORT))
         except error as e:
             print('send:', str(e), file=sys.stderr)
             continue
@@ -58,7 +59,7 @@ def pick(hostlist, delay=1):
                     print('recv:', str(e), file=sys.stderr)
                     continue
                 break
-            data = data.split(':')
+            data = data.decode('utf-8', 'replace').split(':')
             if len(data) >= 4 and data[0] == PONG_MESSAGE:
                 hostname = data[2] or answer_from[0]
                 try:
@@ -75,7 +76,7 @@ def pick(hostlist, delay=1):
 
 def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
                  tries=2, delay=0.5, verbose=1, port_needed=1):
-    from . import gamesrv
+    import gamesrv
     if verbose:
         print('Looking for servers in the following list:', file=sys.stderr)
         for host, udpport in hostlist:
@@ -94,7 +95,7 @@ def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
                         ipaddr = gethostbyname(host)
                     except error as e:
                         print('gethostbyname:', str(e), file=sys.stderr)
-                s.sendto(PING_MESSAGE, (ipaddr, udpport or UDP_PORT))
+                s.sendto(PING_MESSAGE.encode('ascii'), (ipaddr, udpport or UDP_PORT))
                 hostsend, hostrecv = events.setdefault(ipaddr, ([], []))
                 hostsend.append(time.time())
             except error as e:
@@ -116,7 +117,7 @@ def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
             else:
                 hostsend, hostrecv = events.setdefault(ipaddr, ([], []))
                 hostrecv.append(time.time())
-            data = data.split(':')
+            data = data.decode('utf-8', 'replace').split(':')
             if len(data) >= 4 and data[0] == PONG_MESSAGE:
                 try:
                     port = int(data[3])
@@ -163,7 +164,9 @@ def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
             if len(hostsend) == len(hostrecv) == tries:
                 ping = min([t2-t1 for t1, t2 in zip(hostsend, hostrecv)])
         servers[host, port] = (servers[host, port], ping)
-    sys.setcheckinterval(4096)
+    # Python 2 had sys.setcheckinterval(4096) here, the normal thread
+    # switching setting (see set_fast_thread_switching in metaclient.py)
+    sys.setswitchinterval(0.005)
     return servers
 
 # ____________________________________________________________
@@ -175,7 +178,7 @@ def _lazygetter(hostname, resultlst):
         try:
             hostname = gethostbyaddr(hostname)[0]
             if hostname == 'localhost':
-                from .msgstruct import HOSTNAME as hostname
+                from msgstruct import HOSTNAME as hostname
         except error:
             pass
     finally:

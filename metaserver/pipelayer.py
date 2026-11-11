@@ -116,7 +116,7 @@ class PipeLayer(object):
                     rest = len(data) + payload - packetlength
                     packet.append(data[:rest])
                     self.out_queue.append(data[rest:])
-                packetpayload = ''.join(packet)
+                packetpayload = b''.join(packet)
                 self.out_crc = crc32(packetpayload, self.out_crc)
                 packetpayload += struct.pack("!I", self.out_crc & 0xffffffff)
                 self.out_oldpackets.appendleft(packetpayload)
@@ -125,7 +125,7 @@ class PipeLayer(object):
             # a pure ACK packet, no payload
             if self.out_oldpackets and flags == FLAG_REG:
                 flags = FLAG_CFRM
-            packetpayload = ''
+            packetpayload = b''
         packet = struct.pack("!BBH", flags,
                              self.in_nextseqid & 0xFF,
                              seqid) + packetpayload
@@ -147,11 +147,11 @@ class PipeLayer(object):
         in_diff  = (in_seqid  - self.in_nextseqid ) & 0xFFFF
         ack_diff = (self.out_nextseqid + self.out_resend - ack_seqid) & 0xFF
         if in_diff >= max_old_packets:
-            return ''    # invalid, but can occur as a late repetition
+            return b''    # invalid, but can occur as a late repetition
         if ack_diff != len(self.out_oldpackets):
             # forget all acknowledged packets
             if ack_diff > len(self.out_oldpackets):
-                return ''   # invalid, but can occur with packet reordering
+                return b''   # invalid, but can occur with packet reordering
             while len(self.out_oldpackets) > ack_diff:
                 #print ' '*self._dump_indent, '--- POP', repr(self.out_oldpackets[-1])
                 self.out_oldpackets.pop()
@@ -180,7 +180,7 @@ class PipeLayer(object):
                 crc, = struct.unpack("!I", rawdata[-4:])
                 if crc != (crc32(payload, self.in_crc) & 0xffffffff):
                     self.bad_crc()
-                    return ''   # bad crc! drop packet
+                    return b''   # bad crc! drop packet
                 self.in_nextseqid = (self.in_nextseqid + 1) & 0xFFFF
                 self.in_crc = crc
                 result = [payload]
@@ -195,7 +195,7 @@ class PipeLayer(object):
                     self.in_nextseqid = (self.in_nextseqid + 1) & 0xFFFF
                     self.in_crc = crc
                     result.append(payload)
-                return ''.join(result)
+                return b''.join(result)
         else:
             # we missed at least one intermediate packet: send a NAK
             if len(rawdata) > 4:
@@ -205,7 +205,7 @@ class PipeLayer(object):
             else:
                 self.out_flags = FLAG_NAK
             self.out_nextrepeattime = self.cur_time
-        return ''
+        return b''
 
     def bad_crc(self):
         import sys
@@ -324,7 +324,7 @@ class PipeOverUdp(object):
             data = self.recv(bufsize)
             buf.append(data)
             bufsize -= len(data)
-        return ''.join(buf)
+        return b''.join(buf)
 
     def fileno(self):
         if not self.recvpipe:

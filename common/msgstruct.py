@@ -11,62 +11,65 @@ except ImportError:
     HOSTNAME = gethostname()
 
 
-MSG_WELCOME = "Welcome to gamesrv.py(3) !\n"
-MSG_BROADCAST_PORT= "*"
-MSG_DEF_PLAYFIELD = "p"
-MSG_DEF_KEY       = "k"
-MSG_DEF_ICON      = "r"
-MSG_DEF_BITMAP    = "m"
-MSG_DEF_SAMPLE    = "w"
-MSG_DEF_MUSIC     = "z"
-MSG_PLAY_MUSIC    = "Z"
-MSG_FADEOUT       = "f"
-MSG_PLAYER_JOIN   = "+"
-MSG_PLAYER_KILL   = "-"
-MSG_PLAYER_ICON   = "i"
-MSG_PING          = "g"
-MSG_PONG          = "G"
-MSG_INLINE_FRAME  = "\\"
+MSG_WELCOME = b"Welcome to gamesrv.py(3) !\n"
+MSG_BROADCAST_PORT= b"*"
+MSG_DEF_PLAYFIELD = b"p"
+MSG_DEF_KEY       = b"k"
+MSG_DEF_ICON      = b"r"
+MSG_DEF_BITMAP    = b"m"
+MSG_DEF_SAMPLE    = b"w"
+MSG_DEF_MUSIC     = b"z"
+MSG_PLAY_MUSIC    = b"Z"
+MSG_FADEOUT       = b"f"
+MSG_PLAYER_JOIN   = b"+"
+MSG_PLAYER_KILL   = b"-"
+MSG_PLAYER_ICON   = b"i"
+MSG_PING          = b"g"
+MSG_PONG          = b"G"
+MSG_INLINE_FRAME  = b"\\"
 MSG_PATCH_FILE    = MSG_DEF_MUSIC
-MSG_ZPATCH_FILE   = "P"
-MSG_MD5_FILE      = "M"
-MSG_RECORDED      = "\x00"
+MSG_ZPATCH_FILE   = b"P"
+MSG_MD5_FILE      = b"M"
+MSG_RECORDED      = b"\x00"
 
-CMSG_PROTO_VERSION= "v"
-CMSG_KEY          = "k"
-CMSG_ADD_PLAYER   = "+"
-CMSG_REMOVE_PLAYER= "-"
-CMSG_UDP_PORT     = "<"
-CMSG_ENABLE_SOUND = "s"
-CMSG_ENABLE_MUSIC = "m"
-CMSG_PING         = "g"
-CMSG_PONG         = "G"
-CMSG_DATA_REQUEST = "M"
-CMSG_PLAYER_NAME  = "n"
+CMSG_PROTO_VERSION= b"v"
+CMSG_KEY          = b"k"
+CMSG_ADD_PLAYER   = b"+"
+CMSG_REMOVE_PLAYER= b"-"
+CMSG_UDP_PORT     = b"<"
+CMSG_ENABLE_SOUND = b"s"
+CMSG_ENABLE_MUSIC = b"m"
+CMSG_PING         = b"g"
+CMSG_PONG         = b"G"
+CMSG_DATA_REQUEST = b"M"
+CMSG_PLAYER_NAME  = b"n"
 
-BROADCAST_MESSAGE = "game!"   # less than 6 bytes
+BROADCAST_MESSAGE = b"game!"   # less than 6 bytes
 
 
 def message(tp, *values):
-    strtype = type('')
+    # Everything sent over the network is bytes: 'tp' is one of the
+    # one-byte MSG_* or CMSG_* codes, and string values must be bytes too.
     typecodes = ['']
     for v in values:
-        if type(v) is strtype:
+        if isinstance(v, bytes):
             typecodes.append('%ds' % len(v))
+        elif isinstance(v, str):
+            raise TypeError("message() needs bytes, not str: %r" % (v,))
         elif 0 <= v < 256:
             typecodes.append('B')
         else:
             typecodes.append('l')
-    typecodes = ''.join(typecodes)
+    typecodes = ''.join(typecodes).encode('ascii')
     assert len(typecodes) < 256
-    return pack(("!B%dsc" % len(typecodes)) + typecodes,
+    return pack(("!B%dsc" % len(typecodes)) + typecodes.decode('ascii'),
                 len(typecodes), typecodes, tp, *values)
 
 def decodemessage(data):
     if data:
-        limit = ord(data[0]) + 1
+        limit = data[0] + 1      # indexing bytes gives an int
         if len(data) >= limit:
-            typecodes = "!c" + data[1:limit]
+            typecodes = "!c" + data[1:limit].decode('ascii')
             end = limit + calcsize(typecodes)
             if len(data) >= end:
                 return unpack(typecodes, data[limit:end]), data[end:]

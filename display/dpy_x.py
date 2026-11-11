@@ -1,6 +1,6 @@
 import sys
 import xshm
-from .modes import BaseDisplay
+from modes import BaseDisplay
 from io import StringIO
 
 

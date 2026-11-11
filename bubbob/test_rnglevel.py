@@ -15,6 +15,13 @@ import random
 sys.path.append('..')
 sys.path.append('../common')
 
+# The levels ask the running game for its last board (boards.Board);
+# these scripts run without a game, so give them a stand-in.
+import gamesrv
+class _NoGame:
+    finalboard = None
+gamesrv.game = _NoGame()
+
 n_lvls = 100
 show_lvl = 0
 
@@ -29,10 +36,10 @@ while idx < len(sys.argv):
         show_lvl |= 2
         n_lvls = 2
     if arg == '-seed':
-	arg = sys.argv[idx]
-	idx += 1
-	print("Using seed: " + arg + "\n")
-	random.seed(arg)
+        arg = sys.argv[idx]
+        idx += 1
+        print("Using seed: " + arg + "\n")
+        random.seed(arg)
 
 def printlvl(level):
     if show_lvl:

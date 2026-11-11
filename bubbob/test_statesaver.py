@@ -1,6 +1,14 @@
-import py
+# Tests for the statesaver module (statesaver.c, or statesaver.py on PyPy).
+# Run with "python3 test_statesaver.py" or with py.test.
+import types
 import statesaver
-import new
+
+def raises(exc, func, *args):
+    try:
+        func(*args)
+    except exc:
+        return
+    raise AssertionError('%s not raised' % exc.__name__)
 
 def test_list():
     lst = [None, 12, "hello", 3.4, ("foo", (), [])]
@@ -52,7 +60,7 @@ def test_method():
         assert glob == 2
         y.append(x)
         return y
-    m = new.instancemethod(func, {})
+    m = types.MethodType(func, {})
     assert m() == [{}]
     m1 = statesaver.copy(m)
     assert m() == [{}, {}]
@@ -71,9 +79,9 @@ def test_generator():
     assert next(g) == 6
     g1 = statesaver.copy(g)
     assert next(g) == 5
-    py.test.raises(StopIteration, g.__next__)
+    raises(StopIteration, g.__next__)
     assert next(g1) == 5
-    py.test.raises(StopIteration, g1.__next__)
+    raises(StopIteration, g1.__next__)
 
 def test_exhausted_gen():
     def gfunc():
@@ -83,10 +91,10 @@ def test_exhausted_gen():
         print(i)
     g1 = statesaver.copy(g)
     assert iter(g1) is g1
-    py.test.raises(StopIteration, g1.__next__)
+    raises(StopIteration, g1.__next__)
     g2 = statesaver.copy(g1)
     assert iter(g2) is g2
-    py.test.raises(StopIteration, g2.__next__)
+    raises(StopIteration, g2.__next__)
 
 def test_seqiter():
     from collections import UserList
@@ -125,3 +133,10 @@ def test_stringiter():
     it1 = statesaver.copy(it)
     assert list(it) == ['l', 'l', 'o']
     assert list(it1) == ['l', 'l', 'o']
+
+
+if __name__ == '__main__':
+    for name, test in sorted(globals().items()):
+        if name.startswith('test_'):
+            test()
+            print('ok', name)

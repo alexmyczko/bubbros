@@ -1,6 +1,7 @@
 
 import random, math, time
 import gamesrv
+import timeline    # logs the inputs, for the Time Machine bonus
 import images
 import boards
 import bubbles
@@ -155,7 +156,7 @@ class Dragon(ActiveSprite):
         timeout += BubPlayer.FrameCounter
         lst = list(self.dcap['carrying'])
         lst.append((timeout, bonus))
-        lst.sort()
+        lst.sort(key=lambda item: item[0])
         self.dcap['carrying'] = lst
 
     def listcarrybonuses(self):
@@ -771,6 +772,7 @@ class BubPlayer(gamesrv.Player):
             for key, value in list(self.iconnames.items()):
                 icons[key] = images.sprget((flip, value))
 
+    @timeline.recorded
     def setplayername(self, name):
         name = name.strip()
         for t in [0, 1]:
@@ -787,6 +789,7 @@ class BubPlayer(gamesrv.Player):
         self.nameicons.reverse()
         scoreboard()
 
+    @timeline.recorded
     def playerjoin(self):
         n = self.pn
         if not self.icons:
@@ -809,6 +812,7 @@ class BubPlayer(gamesrv.Player):
         images.Snd.LetsGo.play()
         #BubPlayer.LatestLetsGo = BubPlayer.FrameCounter
 
+    @timeline.recorded
     def playerleaves(self):
         print('Closing position #%d.' % self.pn)
         self.savecaps()
@@ -878,24 +882,32 @@ class BubPlayer(gamesrv.Player):
                 if key not in ('teleport', 'jumpdown'):
                     del self.pcap[key]
 
+    @timeline.recorded
     def kLeft(self):
         if self.key_left <= 1:
             self.key_left = 1000000
+    @timeline.recorded
     def kmLeft(self):
         self.key_left = (self.key_left == 1000000)
+    @timeline.recorded
     def kRight(self):
         if self.key_right <= 1:
             self.key_right = 1000000
+    @timeline.recorded
     def kmRight(self):
         self.key_right = (self.key_right == 1000000)
+    @timeline.recorded
     def kJump(self):
         if self.key_jump <= 1:
             self.key_jump = 1000000
+    @timeline.recorded
     def kmJump(self):
         self.key_jump = (self.key_jump == 1000000)
+    @timeline.recorded
     def kFire(self):
         if self.key_fire <= 1:
             self.key_fire = 1000000
+    @timeline.recorded
     def kmFire(self):
         self.key_fire = (self.key_fire == 1000000)
 
@@ -912,8 +924,11 @@ class BubPlayer(gamesrv.Player):
         setattr(self, dcap[key_name], value)
 
     def wannago(self, dcap):
-        return dcap['left2right'] * cmp(self.getkey(dcap, 'key_right'),
-                                        self.getkey(dcap, 'key_left'))
+        # -1, 0 or 1: the direction of the key pressed last.
+        # (a > b) - (a < b) is what Python 2's cmp(a, b) returned.
+        right = self.getkey(dcap, 'key_right')
+        left = self.getkey(dcap, 'key_left')
+        return dcap['left2right'] * ((right > left) - (right < left))
 
     def turn_single_shot(self, dcap):
         for name in ('key_left', 'key_right'):
@@ -1056,11 +1071,12 @@ def scoreboard(reset=0, inplace=0, compresslimittime=0):
         else:
             teamslist[p.team].append((points,p))
             teamspoints[p.team] += points
-    teamslist[0].sort()
-    teamslist[1].sort()
+    teamslist[0].sort(key=lambda item: item[0])
+    teamslist[1].sort(key=lambda item: item[0])
     plist.append((teamspoints[0], None, teamslist[0]))
     plist.append((teamspoints[1], None, teamslist[1]))
-    plist.sort()
+    # by score; on a tie the teams (p is None) come first, as in Python 2
+    plist.sort(key=lambda item: (item[0], item[1] is not None))
     x0 = boards.bwidth
     y0 = boards.bheight
     for score, p, t in plist:

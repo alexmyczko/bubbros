@@ -1,6 +1,6 @@
 from time import time as now
-from .pipelayer import PipeLayer, InvalidPacket
-from .pipelayer import FLAG_RANGE_START, FLAG_RANGE_STOP
+from pipelayer import PipeLayer, InvalidPacket
+from pipelayer import FLAG_RANGE_START, FLAG_RANGE_STOP
 import socket, struct
 
 SOU_RANGE_START = FLAG_RANGE_START
@@ -8,7 +8,7 @@ SOU_MIXED_DATA  = FLAG_RANGE_STOP + 0
 SOU_SHUTDOWN    = FLAG_RANGE_STOP + 1
 SOU_RANGE_STOP  = FLAG_RANGE_STOP + 2
 
-SHUTDOWN_PACKET = chr(SOU_SHUTDOWN) + '**'    #  < 4 characters
+SHUTDOWN_PACKET = bytes([SOU_SHUTDOWN]) + b'**'    #  < 4 characters
 
 CONGESTION_TIMEOUT = 20.0
 #CONSOLIDATE_DELAY  = 0.1
@@ -77,12 +77,12 @@ class SocketOverUdp(object):
                     # assumed to be pure video traffic
                     #print ' ~~~[video]'
                     self.udp_over_udp_decoder(packet)
-                    return ''
+                    return b''
             elif packet == SHUTDOWN_PACKET:
                 raise socket.error("received an end-of-connexion packet")
             else:
                 #print ' ~~~[INVALID%d]' % (len(packet),)
-                return ''
+                return b''
 
     def fileno(self):
         self._progress()
@@ -116,9 +116,9 @@ class SocketOverUdp(object):
     send = sendall
 
     def send_video_data(self, udpdata):
-        forced_embedded = SOU_RANGE_START <= ord(udpdata[0]) < SOU_RANGE_STOP
+        forced_embedded = SOU_RANGE_START <= udpdata[0] < SOU_RANGE_STOP
         self.pl.settime(now())
-        packet = self.pl.encode(self.PACKETSIZE) or ''
+        packet = self.pl.encode(self.PACKETSIZE) or b''
         if not forced_embedded and not packet:
             # no PipeLayer packet, send as plain udp data
             datagram = udpdata

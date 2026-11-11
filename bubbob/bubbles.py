@@ -88,7 +88,7 @@ class Bubble(ActiveSprite):
                       if d.bubber is not author.bubber
                       for bonus in d.listcarrybonuses()
                       if isinstance(bonus, CatchNote)]
-            caught.sort()
+            caught.sort(key=lambda item: item[0])
             # count caught dragons, excluding team mates, but including self
             count = 0
             for d in dragons:

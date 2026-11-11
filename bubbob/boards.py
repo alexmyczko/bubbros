@@ -618,11 +618,30 @@ def next_board(num=0, complete=1, fastreenter=False):
     for t in brd.enter(complete, inplace=inplace, fastreenter=fastreenter):
         yield t
 
+    import timeline
     if brd.bonuslevel:
         gen = bonus_play
+        timeline.forget()
     else:
         gen = normal_play
+        timeline.request_checkpoint()
     BoardGen[0] = gen()
+
+def run_pass():
+    """Run one step of all the board generators; return the frame time.
+    bb.py calls this for the live game, timeline.py to replay a board."""
+    import timeline
+    timeline.begin_pass()
+    frametime = 0.0
+    for gen in BoardGen[:]:
+        try:
+            frametime += next(gen)
+        except StopIteration:
+            try:
+                BoardGen.remove(gen)
+            except ValueError:
+                pass
+    return frametime
 
 def set_frametime(ft, privtime=100):
     from player import BubPlayer

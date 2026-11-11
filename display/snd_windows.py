@@ -1,8 +1,8 @@
 import sys
-from io import StringIO
-from . import puremixer
+from io import BytesIO
+import puremixer
 import wingame
-from .music1 import Music
+from music1 import Music
 
 
 class Sound:
@@ -45,7 +45,7 @@ class Sound:
     def play(self, sound, lvolume, rvolume):
         # volume ignored
         if sound not in self.mixer_accum:
-            self.mixer_channels.append(StringIO(sound))
+            self.mixer_channels.append(BytesIO(sound))
             self.mixer_accum[sound] = 1
 
     def play_musics(self, musics, loop_from):
@@ -56,7 +56,7 @@ class Sound:
         "Provide some more data to self.mixer.poll()."
         musics, loop_from, c = self.cmusics
         if c < 0:
-            data = ''
+            data = b''
         else:
             data = musics[c].mixed.decode(self.mixer, size)
         if not data:
@@ -64,7 +64,7 @@ class Sound:
             if c >= len(musics):  # end
                 c = loop_from
                 if c >= len(musics):
-                    return ''
+                    return b''
             self.cmusics = musics, loop_from, c
             try:
                 mixed = musics[c].mixed
@@ -81,7 +81,7 @@ class Sound:
 
 
 def htmloptionstext(nameval):
-    from . import modes
+    import modes
     l = ['<font size=-1>Sampling <%s>' % nameval('select', 'bits')]
     for bits in (8, 16):
         l.append('<'+nameval('option', 'bits', str(bits), default='16')+'>'+

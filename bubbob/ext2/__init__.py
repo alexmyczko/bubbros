@@ -188,7 +188,7 @@ class PacGhost(PacSprite):
                 dragons = self.pacman.pacs or images.ActiveSprites
                 distances = [(abs(dragon.x-self.x)+abs(dragon.y-self.y),
                               dragon) for dragon in dragons]
-                distance, dragon = min(distances)
+                distance, dragon = min(distances, key=lambda item: item[0])
                 if lastmove_x:
                     self.wannadx = 0
                     if (dragon.y < self.y) ^ (random.random() < 0.3):

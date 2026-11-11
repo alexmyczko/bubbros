@@ -1,6 +1,6 @@
 import sys, os
-from io import StringIO
-from . import httpserver
+from io import StringIO, BytesIO
+import httpserver
 
 PLAYERNAMES = ['Bub', 'Bob', 'Boob', 'Beb',
                'Biob', 'Bab', 'Bib',
@@ -68,7 +68,7 @@ def indexloader(**options):
     if 'cheat' in options:
         for opt in options.pop('cheat'):
             __cheat(opt)
-    from . import gamesrv
+    import gamesrv
     if gamesrv.game is None:
         indexdata = EMPTY_PAGE
     else:
@@ -95,26 +95,73 @@ def nameloader(**options):
 
 wave_cache = {}
 
+# The audioop module was removed in Python 3.13.  These three functions
+# do what audioop.bias(), ratecv() and lin2ulaw() did, for 8-bit mono
+# samples only, following the C code of CPython's audioop module.
+
+def _signed8(data):
+    # audioop.bias(data, 1, -128): unsigned 8-bit samples (128 = silence)
+    # to signed ones
+    return [b - 128 for b in data]
+
+def _ratecv8(samples, inrate, outrate):
+    # audioop.ratecv(data, 1, 1, inrate, outrate, None), on the values
+    # as audioop stores them internally (sample << 24)
+    import math
+    g = math.gcd(inrate, outrate)
+    inrate //= g
+    outrate //= g
+    d = -outrate
+    prev = cur = 0
+    out = []
+    it = iter(samples)
+    while True:
+        while d < 0:
+            try:
+                s = next(it)
+            except StopIteration:
+                return out
+            prev = cur
+            cur = s << 24
+            d += outrate
+        while d >= 0:
+            out.append(int((prev * d + cur * (outrate - d)) / outrate) >> 24)
+            d -= inrate
+
+_SEG_UEND = (0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF, 0x1FFF)
+
+def _ulaw(sample):
+    # audioop.lin2ulaw(data, 1) for one signed 8-bit sample
+    pcm = (sample << 24) >> 18           # 14-bit linear value
+    if pcm < 0:
+        pcm, mask = -pcm, 0x7F
+    else:
+        mask = 0xFF
+    pcm = min(pcm, 8159) + (0x84 >> 2)
+    for seg, end in enumerate(_SEG_UEND):
+        if pcm <= end:
+            return ((seg << 4) | ((pcm >> (seg + 1)) & 0xF)) ^ mask
+    return 0x7F ^ mask
+
 def wav2au(data):
     # Very limited! Assumes a standard 8-bit mono .wav as input
-    import audioop, struct
+    import struct
     freq, = struct.unpack("<i", data[24:28])
-    data = data[44:]
-    data = audioop.bias(data, 1, -128)
-    data, ignored = audioop.ratecv(data, 1, 1, freq, 8000, None)
-    data = audioop.lin2ulaw(data, 1)
+    samples = _signed8(data[44:])
+    samples = _ratecv8(samples, freq, 8000)
+    data = bytes([_ulaw(s) for s in samples])
     data = struct.pack('>4siiiii8s',
-                       '.snd',                         # header
+                       b'.snd',                        # header
                        struct.calcsize('>4siiiii8s'),  # header size
                        len(data),                      # data size
                        1,                              # encoding
                        8000,                           # sample rate
                        1,                              # channels
-                       'magic.au') + data
+                       b'magic.au') + data
     return data
 
 def sampleloader(code=[], **options):
-    from . import gamesrv
+    import gamesrv
     try:
         data = wave_cache[code[0]]
     except KeyError:
@@ -124,7 +171,7 @@ def sampleloader(code=[], **options):
                 break
         else:
             raise KeyError(code[0])
-    return StringIO(data), 'audio/wav'
+    return BytesIO(data), 'audio/wav'
 
 
 def setup():

@@ -2,7 +2,7 @@
 
 import http.server
 from http.server import SimpleHTTPRequestHandler
-import urllib.parse, cgi, html.entities
+import urllib.parse, html.entities
 import sys, os, time
 from io import StringIO
 
@@ -117,11 +117,19 @@ class MiniHandler(SimpleHTTPRequestHandler):
         kwds = {}
         for q in [query1, query]:
             if q:
-                kwds.update(cgi.parse_qs(q))
+                if isinstance(q, bytes):     # the body of a POST
+                    q = q.decode('utf-8', 'replace')
+                kwds.update(urllib.parse.parse_qs(q))
         loader = pathloaders[path]
         try:
             hdr = self.headers
-            hdr['remote host'] = self.client_address[0]
+            # Pass the client address to the loaders with the headers.
+            # Python 3 rejects the old name 'remote host' (a space is not
+            # valid in a header name, which is also why a client could not
+            # forge it). Drop any X-Remote-Host the client sent, so the
+            # value is always ours.
+            del hdr['X-Remote-Host']
+            hdr['X-Remote-Host'] = self.client_address[0]
             f, ctype = loader(headers=hdr, **kwds)
         except IOError as e:
             self.send_error(404, "I/O error: " + str(e))
@@ -159,7 +167,7 @@ Please <a href="%s">click here</a> to continue.
 
     def do_POST(self):
         try:
-            nbytes = int(self.headers.getheader('content-length'))
+            nbytes = int(self.headers.get('content-length'))
         except:
             nbytes = 0
         query = self.rfile.read(nbytes).strip()
@@ -169,10 +177,21 @@ Please <a href="%s">click here</a> to continue.
             f.close()
 
     def parse_request(self):
-        if self.raw_requestline == '':
+        if self.raw_requestline == b'':
             return False
         else:
             return SimpleHTTPRequestHandler.parse_request(self)
+
+    def copyfile(self, source, outputfile):
+        # The loaders return text (templates, StringIO) or binary files,
+        # but the socket only takes bytes.
+        while True:
+            data = source.read(16384)
+            if not data:
+                break
+            if isinstance(data, str):
+                data = data.encode('utf-8')
+            outputfile.write(data)
 
     def address_string(self):
         """Override to avoid DNS lookups"""
@@ -187,6 +206,6 @@ Please <a href="%s">click here</a> to continue.
 actions_when_finished = []
 
 def my_host():
-    from . import gamesrv
+    import gamesrv
     port = gamesrv.socketports[gamesrv.openhttpsocket()]
     return '127.0.0.1:%d' % port

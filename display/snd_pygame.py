@@ -1,5 +1,5 @@
 import sys
-from .modes import musichtmloptiontext as htmloptionstext
+from modes import musichtmloptiontext as htmloptionstext
 from pygame.locals import *
 import pygame.mixer
 

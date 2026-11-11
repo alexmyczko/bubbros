@@ -1,3 +1,4 @@
+#define PY_SSIZE_T_CLEAN   /* '#' formats of PyArg_ParseTuple take Py_ssize_t */
 #include <Python.h>
 #include <windows.h>
 #include <mmsystem.h>
@@ -28,8 +29,8 @@ typedef struct {
   PyObject* motionevent;
 } DisplayObject;
 
-#define DisplayObject_Check(v)	((v)->ob_type == &Display_Type)
-staticforward PyTypeObject Display_Type;
+#define DisplayObject_Check(v)	(Py_TYPE(v) == &Display_Type)
+static PyTypeObject Display_Type;
 
 
 static void flush(DisplayObject* self)
@@ -75,7 +76,7 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
 
   case WM_KEYDOWN:
   case WM_KEYUP:
-    self = (DisplayObject*) GetWindowLong(hwnd, 0);
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
         PyObject* v;
@@ -96,7 +97,7 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
     break;
 
   case WM_LBUTTONDOWN:
-    self = (DisplayObject*) GetWindowLong(hwnd, 0);
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
         PyObject* v;
@@ -115,7 +116,7 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
     break;
 
   case WM_MOUSEMOVE:
-    self = (DisplayObject*) GetWindowLong(hwnd, 0);
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
         Py_XDECREF(self->motionevent);
@@ -124,7 +125,7 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
     break;
 
   case WM_DESTROY:
-    self = (DisplayObject*) GetWindowLong(hwnd, 0);
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
         release_window_data(self);
@@ -176,7 +177,7 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
                              (HWND) NULL, (HMENU) NULL,
                              /*HINSTANCE*/ 0, (LPVOID) NULL);
   if (self->win == (HWND) NULL) goto err2;
-  SetWindowLong(self->win, 0, (long) self);
+  SetWindowLongPtr(self->win, 0, (LONG_PTR) self);
 
   /* Create DC */
   self->dc = GetDC(self->win);
@@ -317,7 +318,7 @@ static void pack_pixel(DisplayObject* self, unsigned char *data, int r, int g, i
 static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
 {
   int w,h;
-  int length;
+  Py_ssize_t length;
   unsigned char* input = NULL;
   long keycol = -1;
 
@@ -350,7 +351,7 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
 	  return NULL;
 	}
       /* Create a new string and fill it with the correctly packed image */
-      str = PyString_FromStringAndSize(NULL, size);
+      str = PyBytes_FromStringAndSize(NULL, size);
       if (!str)
         return NULL;
       if (keycol >= 0)
@@ -373,7 +374,7 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
       Py_DECREF(str);  /* one ref left in 'result' */
       if (!result)
         return NULL;
-      dst = (unsigned char*) PyString_AS_STRING(str);
+      dst = (unsigned char*) PyBytes_AS_STRING(str);
       memset(dst,0,size);
 
       for( y=0; y<h; y++ )
@@ -402,7 +403,7 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
       int x,y,w,h,scanline;
       int clipx=0, clipy=0, clipw=65536, cliph=65536;
       unsigned char* src;
-      int length;
+      Py_ssize_t length;
       long keycol;
       int bytes_per_pixel = self->screenbmpinfo.bmiHeader.biBitCount/8;
       unsigned char* data = self->screenfirstline;
@@ -493,14 +494,14 @@ static PyObject* display_getppm1(DisplayObject* self, PyObject* args)
 
       scanline = bytes_per_pixel*w;
       length = scanline*h;
-      str = PyString_FromStringAndSize(NULL, length);
+      str = PyBytes_FromStringAndSize(NULL, length);
       if (!str)
         return NULL;
       result = Py_BuildValue("iiOl", w, h, str, -1);
       Py_DECREF(str);  /* one ref left in 'result' */
       if (!result)
         return NULL;
-      dst = (unsigned char*) PyString_AS_STRING(str);
+      dst = (unsigned char*) PyBytes_AS_STRING(str);
 
       if (x<clipx) { dst+=(clipx-x)*bytes_per_pixel; w+=x-clipx; x=clipx; }
       if (y<clipy) { dst+=(clipy-y)*scanline; h+=y-clipy; y=clipy; }
@@ -608,7 +609,7 @@ static PyObject* display_flip1(DisplayObject* self, PyObject* args)
 
 static PyObject* display_shmmode(DisplayObject* self, PyObject *args)
 {
-  return PyInt_FromLong(0);
+  return PyLong_FromLong(0);
 }
 
 static PyObject* display_settitle(DisplayObject* self, PyObject* args)
@@ -638,30 +639,15 @@ static PyMethodDef display_methods[] = {
   {NULL,		NULL}		/* sentinel */
 };
 
-static PyObject* display_getattr(DisplayObject* self, char* name)
-{
-  return Py_FindMethod(display_methods, (PyObject*)self, name);
-}
-
-
-statichere PyTypeObject Display_Type = {
-	PyObject_HEAD_INIT(NULL)
-	0,			/*ob_size*/
-	"Display",		/*tp_name*/
-	sizeof(DisplayObject),	/*tp_basicsize*/
-	0,			/*tp_itemsize*/
-	/* methods */
-	(destructor)display_dealloc, /*tp_dealloc*/
-	0,			/*tp_print*/
-	(getattrfunc)display_getattr, /*tp_getattr*/
-	0,			/*tp_setattr*/
-	0,			/*tp_compare*/
-	0,			/*tp_repr*/
-	0,			/*tp_as_number*/
-	0,			/*tp_as_sequence*/
-	0,			/*tp_as_mapping*/
-	0,			/*tp_hash*/
-	0,			/*tp_call*/
+/* The methods are found through tp_methods; Python 3 has no
+   Py_FindMethod() for a tp_getattr function to use. */
+static PyTypeObject Display_Type = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	.tp_name = "wingame.Display",
+	.tp_basicsize = sizeof(DisplayObject),
+	.tp_dealloc = (destructor)display_dealloc,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
+	.tp_methods = display_methods,
 };
 
 
@@ -677,8 +663,8 @@ typedef struct {
 	int waveHdrCount, waveHdrNext;
 } AudioObject;
 
-#define AudioObject_Check(v)	((v)->ob_type == &Audio_Type)
-staticforward PyTypeObject Audio_Type;
+#define AudioObject_Check(v)	(Py_TYPE(v) == &Audio_Type)
+static PyTypeObject Audio_Type;
 
 
 static PyObject* new_audio(PyObject* dummy, PyObject* args)
@@ -705,7 +691,7 @@ static PyObject* new_audio(PyObject* dummy, PyObject* args)
 	wf.wBitsPerSample  = bits;
 	wf.nBlockAlign     = wf.nChannels * wf.wBitsPerSample / 8;
 	wf.nAvgBytesPerSec = wf.nSamplesPerSec * wf.nBlockAlign;
-	err = waveOutOpen(&self->waveOut, WAVE_MAPPER, &wf, (DWORD) self->doneEvent, 0, CALLBACK_EVENT);
+	err = waveOutOpen(&self->waveOut, WAVE_MAPPER, &wf, (DWORD_PTR) self->doneEvent, 0, CALLBACK_EVENT);
 	if (err != MMSYSERR_NOERROR || self->doneEvent == NULL) {
 		Py_DECREF(self);
 		PyErr_SetString(PyExc_IOError, "cannot open audio device");
@@ -770,7 +756,7 @@ static PyObject* audio_ready1(AudioObject* self, PyObject* args)
 {
 	if (!PyArg_ParseTuple(args, ""))
 		return NULL;
-	return PyInt_FromLong(self->waveHdrNext < self->waveHdrCount &&
+	return PyLong_FromLong(self->waveHdrNext < self->waveHdrCount &&
 			      (self->waveHdr[self->waveHdrNext].dwFlags & WHDR_DONE));
 }
 
@@ -778,7 +764,7 @@ static PyObject* audio_write1(AudioObject* self, PyObject* args)
 {
 	WAVEHDR* wh;
 	char* buffer;
-	int bufsize;
+	Py_ssize_t bufsize;
 	if (!PyArg_ParseTuple(args, "s#", &buffer, &bufsize))
 		return NULL;
 	if (self->waveHdrNext >= self->waveHdrCount) {
@@ -826,30 +812,13 @@ static PyMethodDef audio_methods[] = {
   {NULL,		NULL}		/* sentinel */
 };
 
-static PyObject* audio_getattr(AudioObject* self, char* name)
-{
-  return Py_FindMethod(audio_methods, (PyObject*)self, name);
-}
-
-
-statichere PyTypeObject Audio_Type = {
-	PyObject_HEAD_INIT(NULL)
-	0,			/*ob_size*/
-	"Audio",		/*tp_name*/
-	sizeof(AudioObject),	/*tp_basicsize*/
-	0,			/*tp_itemsize*/
-	/* methods */
-	(destructor)audio_dealloc, /*tp_dealloc*/
-	0,			/*tp_print*/
-	(getattrfunc)audio_getattr, /*tp_getattr*/
-	0,			/*tp_setattr*/
-	0,			/*tp_compare*/
-	0,			/*tp_repr*/
-	0,			/*tp_as_number*/
-	0,			/*tp_as_sequence*/
-	0,			/*tp_as_mapping*/
-	0,			/*tp_hash*/
-	0,			/*tp_call*/
+static PyTypeObject Audio_Type = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	.tp_name = "wingame.Audio",
+	.tp_basicsize = sizeof(AudioObject),
+	.tp_dealloc = (destructor)audio_dealloc,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
+	.tp_methods = audio_methods,
 };
 
 
@@ -859,9 +828,13 @@ static PyMethodDef WinMethods[] = {
            {NULL,       NULL}         /* Sentinel */
        };
 
-void initwingame(void)
+static struct PyModuleDef wingamemodule = {
+  PyModuleDef_HEAD_INIT, "wingame", NULL, -1, WinMethods
+};
+
+PyMODINIT_FUNC PyInit_wingame(void)
 {
-  Display_Type.ob_type = &PyType_Type;
-  Audio_Type.ob_type = &PyType_Type;
-  Py_InitModule("wingame", WinMethods);
+  if (PyType_Ready(&Display_Type) < 0 || PyType_Ready(&Audio_Type) < 0)
+    return NULL;
+  return PyModule_Create(&wingamemodule);
 }

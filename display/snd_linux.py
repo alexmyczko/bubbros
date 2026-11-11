@@ -1,7 +1,68 @@
-import sys
-from io import StringIO
-from . import puremixer
-from .music1 import Music
+import sys, os
+from io import BytesIO
+import puremixer
+from music1 import Music
+
+
+# linuxaudiodev, which this driver used, is gone from Python 3, and its
+# successor ossaudiodev was removed in Python 3.13.  This small class
+# talks to the OSS device /dev/dsp with ioctl() and offers the few
+# methods the driver needs, with the same names.
+
+class OSSDevice:
+    # OSS ioctl requests (from <sys/soundcard.h>) and sample formats
+    SNDCTL_DSP_SPEED     = 0xC0045002
+    SNDCTL_DSP_SETFMT    = 0xC0045005
+    SNDCTL_DSP_CHANNELS  = 0xC0045006
+    SNDCTL_DSP_GETOSPACE = 0x8010500C
+    AFMT_U8     = 0x00000008
+    AFMT_S16_LE = 0x00000010
+    AFMT_S16_BE = 0x00000020
+    AFMT_S8     = 0x00000040
+    AFMT_U16_LE = 0x00000080
+    AFMT_U16_BE = 0x00000100
+    if sys.byteorder == 'little':
+        AFMT_S16_NE = AFMT_S16_LE
+    else:
+        AFMT_S16_NE = AFMT_S16_BE
+
+    def __init__(self, devname=None):
+        devname = devname or os.environ.get('AUDIODEV', '/dev/dsp')
+        self.fd = os.open(devname, os.O_WRONLY)
+
+    def _ioctl_int(self, request, value):
+        import fcntl, struct
+        data = fcntl.ioctl(self.fd, request, struct.pack('i', value))
+        return struct.unpack('i', data)[0]
+
+    def setparameters(self, rate, bits, channels, fmt):
+        self._ioctl_int(self.SNDCTL_DSP_SETFMT, fmt)
+        self._ioctl_int(self.SNDCTL_DSP_CHANNELS, channels)
+        self._ioctl_int(self.SNDCTL_DSP_SPEED, rate)
+
+    def _ospace(self):
+        # audio_buf_info: fragments, fragstotal, fragsize, bytes (free)
+        import fcntl, struct
+        data = fcntl.ioctl(self.fd, self.SNDCTL_DSP_GETOSPACE, b'\0' * 16)
+        return struct.unpack('iiii', data)
+
+    def bufsize(self):
+        fragments, fragstotal, fragsize, free = self._ospace()
+        return fragstotal * fragsize
+
+    def obufcount(self):
+        fragments, fragstotal, fragsize, free = self._ospace()
+        return fragstotal * fragsize - free
+
+    def write(self, data):
+        while data:
+            data = data[os.write(self.fd, data):]
+
+    def close(self):
+        os.close(self.fd)
+
+def open_dsp():
+    return OSSDevice()
 
 
 class Sound:
@@ -36,11 +97,10 @@ class Sound:
                     bits, signed, byteorder)), file=sys.stderr)
             sys.exit(2)
 
-        import linuxaudiodev
         try:
-            f = linuxaudiodev.open('w')
+            f = open_dsp()
             f.setparameters(self.freq, p['bits'], 1,
-                            getattr(linuxaudiodev, 'AFMT_' + self.format))
+                            getattr(OSSDevice, 'AFMT_' + self.format))
         except Exception as e:
             print("sound disabled: %s: %s" % (
                 e.__class__.__name__, e), file=sys.stderr)
@@ -84,7 +144,7 @@ class Sound:
     def play(self, sound, lvolume, rvolume):
         # volume ignored
         if sound not in self.mixer_accum:
-            self.mixer_channels.append(StringIO(sound))
+            self.mixer_channels.append(BytesIO(sound))
             self.mixer_accum[sound] = 1
 
     def play_musics(self, musics, loop_from):
@@ -96,7 +156,7 @@ class Sound:
         "Provide some more data to self.mixer.poll()."
         musics, loop_from, c = self.cmusics
         if c < 0:
-            data = ''
+            data = b''
         else:
             data = musics[c].mixed.decode(self.mixer, size)
         if not data:
@@ -104,7 +164,7 @@ class Sound:
             if c >= len(musics):  # end
                 c = loop_from
                 if c >= len(musics):
-                    return ''
+                    return b''
             self.cmusics = musics, loop_from, c
             try:
                 mixed = musics[c].mixed
@@ -121,13 +181,12 @@ class Sound:
 
 
 def imperror():
+    if not sys.platform.startswith('linux'):
+        return 'only available on Linux'
     try:
-        import linuxaudiodev
+        import audioop
     except ImportError:
-        if sys.platform.startswith('linux'):
-            return 'linuxaudiodev module not installed'
-        else:
-            return 'only available on Linux'
+        return 'audioop module not installed (package audioop-lts)'
 
 def nicefmttext(bits, signed, byteorder):
     s = '%s %d bits' % (signed and 'signed' or 'unsigned', bits)
@@ -136,7 +195,7 @@ def nicefmttext(bits, signed, byteorder):
     return s
 
 def htmloptionstext(nameval):
-    from . import modes
+    import modes
     l = ['<font size=-1>Sampling <%s>' % nameval('select', 'fmt')]
     for name, bits, signed, byteorder in Sound.Formats:
         l.append('<'+nameval('option', 'fmt', name, default='S16_NE')+'>'+

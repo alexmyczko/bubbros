@@ -1,9 +1,9 @@
 from socket import *
 import os, sys, time, random
 from select import select
-from io import StringIO
+from io import StringIO, BytesIO
 from weakref import WeakValueDictionary
-from .metastruct import *
+from metastruct import *
 from common import httpserver, stdlog
 
 if __name__ == '__main__':
@@ -152,11 +152,12 @@ class Connexion(MessageSocket):
         self.s.sendall(message(RMSG_LIST, metaserver.makelist()))
 
     def msg_route(self, targetkey, *rest):
+        key = targetkey.decode('utf-8', 'replace')
         try:
-            target = metaserver.getserver(targetkey)
+            target = metaserver.getserver(key)
         except KeyError:
             try:
-                target = self.backlinks[targetkey]
+                target = self.backlinks[key]
             except KeyError:
                 self.s.sendall(message(RMSG_NO_HOST, targetkey))
                 return
@@ -164,12 +165,12 @@ class Connexion(MessageSocket):
 
     def route(self, origin, msgcode, *rest):
         self.backlinks[origin.key] = origin
-        self.s.sendall(message(msgcode, origin.key, *rest))
+        self.s.sendall(message(msgcode, origin.key.encode('utf-8'), *rest))
 
     def msg_traceback(self, tb, *rest):
         f = stdlog.LogFile('tb-%s.log' % (self.addr[0],))
         if f:
-            print(tb, file=f)
+            print(tb.decode('utf-8', 'replace'), file=f)
             f.close()
 
     def msg_udp_addr(self, pattern, *rest):
@@ -180,7 +181,7 @@ class Connexion(MessageSocket):
                     port = int(port)
                 except ValueError:
                     continue
-                self.s.sendall(message(RMSG_UDP_ADDR, host, port))
+                self.s.sendall(message(RMSG_UDP_ADDR, host.encode('ascii'), port))
                 return
         else:
             self.s.sendall(message(RMSG_UDP_ADDR))
@@ -227,7 +228,8 @@ def makehosthtml(srv, bottommsg, join):
     url = None
     if join:
         url = "http://%s/join.html?host=%s&port=%s&httpport=%s&m=%s" % (
-            join, hostname, port, info.get('httpport') or 'off', time.time())
+            join, hostname, port, totext(info.get('httpport') or 'off'),
+            time.time())
     else:
         try:
             httpport = int(info.get('httpport'))
@@ -264,8 +266,8 @@ def indexloader(headers, join=[], head=[], **options):
             icon = '<img src="ico?key=%s">' % srv.serverkey
             bgcolor = ('#C0D0D0', '#E0D0A8')[counter&1]
             hosthtml = makehosthtml(srv, bottommsg, join)
-            desc = htmlquote(info.get('desc')) or ''
-            extradesc = htmlquote(info.get('extradesc')) or ''
+            desc = htmlquote(totext(info.get('desc', ''))) or ''
+            extradesc = htmlquote(totext(info.get('extradesc', ''))) or ''
             if isinstance(info.get('time'), int):
                 stime = time.strftime('%a %b %d<br>%H:%M GMT',
                                       time.gmtime(info['time']))
@@ -294,8 +296,8 @@ def indexloader(headers, join=[], head=[], **options):
 
 def icoloader(key, **options):
     srv = metaserver.getserver(key[0])
-    iconformat = txtfilter(srv.serverinfo['iconformat'], 32)
-    return StringIO(srv.serverinfo['icon']), 'image/' + iconformat
+    iconformat = txtfilter(totext(srv.serverinfo['iconformat']), 32)
+    return BytesIO(srv.serverinfo['icon']), 'image/' + iconformat
 
 httpserver.register('', indexloader)
 httpserver.register('index.html', indexloader)
@@ -329,7 +331,7 @@ def mainloop():
             if s in serversockets:
                 input, close = serversockets[s]
                 try:
-                    eval(input())
+                    input()
                 except:
                     import traceback
                     print("-"*60)

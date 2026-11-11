@@ -26,28 +26,28 @@ def nameval(type, name, value=None, default=None, mangling=1, options=options):
 
 def begingroup(text, fgcolor, bgcolor, lightbgcolor, img, nbitems):
     global groupinfo
-    print '<tr>'
-    print '<td width="20%"',
-    print 'rowspan="%d" bgcolor="%s" align="center">' % (nbitems or 1, bgcolor)
-    print '<font size=+1 color="%s"><strong>%s</strong></font>' % (fgcolor, text)
-    print '</td>'
+    print('<tr>')
+    print('<td width="20%"', end=' ')
+    print('rowspan="%d" bgcolor="%s" align="center">' % (nbitems or 1, bgcolor))
+    print('<font size=+1 color="%s"><strong>%s</strong></font>' % (fgcolor, text))
+    print('</td>')
     groupinfo = [lightbgcolor, bgcolor, fgcolor, 0, 0, img]
     if not nbitems:
         begingroupitem()
         endgroupitem()
 def begingroupitem(highlight=0):
     if groupinfo[4]:
-        print '<tr>'
+        print('<tr>')
     groupinfo[4] += 1
     groupinfo[3] = highlight
-    print '<td width="80%%" bgcolor="%s">' % groupinfo[highlight]
-    print '<table width="100%" border=0><tr>'
+    print('<td width="80%%" bgcolor="%s">' % groupinfo[highlight])
+    print('<table width="100%" border=0><tr>')
 def endgroupitem():
-    print '<td width=40 align="right" valign="top">'
+    print('<td width=40 align="right" valign="top">')
     if groupinfo[3]:
-        print '<img src="%s">' % groupinfo[-1]
-    print '</td></tr></table>'
-    print '</td></tr>'
+        print('<img src="%s">' % groupinfo[-1])
+    print('</td></tr></table>')
+    print('</td></tr>')
 def endgroup():
     pass
 
@@ -55,48 +55,48 @@ def beginmode():
     highlight = mode in currentmodes
     begingroupitem(highlight)
 
-    print '<td width=36 align="right" valign="center">'
+    print('<td width=36 align="right" valign="center">')
     err = mode.imperror()
     if highlight:
         url = None
         err = err or "selected"
-        print '<img alt="selected" src="checked.png">'
+        print('<img alt="selected" src="checked.png">')
     elif err:
         url = None
-        print '<img alt="%s" src="disabled.png">' % err
+        print('<img alt="%s" src="disabled.png">' % err)
     else:
         url = "options.html?%s=%s&savetime=%s" % (mode.prefix, mode.name,
                                                   time.time())
         err = "select"
-        print '<a href="%s"><img alt="select" src="unchecked.png"></a>' % url
-    print '</td>'
+        print('<a href="%s"><img alt="select" src="unchecked.png"></a>' % url)
+    print('</td>')
 
-    print '<td width="20%" valign="center">'
-    if url: print '<a href="%s">' % url,
-    print htmlquote(err),
-    if url: print '</a>',
-    print '</td>'
+    print('<td width="20%" valign="center">')
+    if url: print('<a href="%s">' % url, end=' ')
+    print(htmlquote(err), end=' ')
+    if url: print('</a>', end=' ')
+    print('</td>')
 
-    print '<td width="80%"><font size=+1><strong>',
-    print htmlquote(mode.name),
-    print '</strong></font>'
+    print('<td width="80%"><font size=+1><strong>', end=' ')
+    print(htmlquote(mode.name), end=' ')
+    print('</strong></font>')
     if mode.url:
-        print '&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<a href="%s"><i>web site</i></a>' % mode.url
-    print '<br>'
-    print htmlquote(mode.descr)
+        print('&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<a href="%s"><i>web site</i></a>' % mode.url)
+    print('<br>')
+    print(htmlquote(mode.descr))
     return highlight
 
 def beginmodeoptions():
-    print '<br>'
-    print '<table border=0><tr><td>'
+    print('<br>')
+    print('<table border=0><tr><td>')
 
 def endmodeoptions():
-    print '</td><td align="center" valign="bottom">'
-    print '<input type=submit value=" Save ">'
-    print '</td></tr></table>'
+    print('</td><td align="center" valign="bottom">')
+    print('<input type=submit value=" Save ">')
+    print('</td></tr></table>')
 
 def endmode():
-    print '</td>'
+    print('</td>')
     endgroupitem()
 
 def modeitems(modelist):
@@ -106,7 +106,7 @@ def modeitems(modelist):
             txt = mode.htmloptionstext(nameval)
             if txt:
                 beginmodeoptions()
-                print txt
+                print(txt)
                 endmodeoptions()
         endmode()
 )s
@@ -201,8 +201,8 @@ begingroup('Sound driver', '#800000', '#FFFF00', '#C0C0C0',
            'lbiob.png', java and 1 or len(soundmodes))
 if java:
     begingroupitem(1)
-    print '<td><font size=-1>Java Applet always does sounds, but',
-    print 'background music is not implemented</font></td>'
+    print('<td><font size=-1>Java Applet always does sounds, but', end=' ')
+    print('background music is not implemented</font></td>')
     endgroupitem()
 else:
     modeitems(soundmodes)
@@ -224,7 +224,7 @@ begingroupitem(1)
       Moreover servers can re-route UDP traffic to clients behind firewalls over TCP.
 %(
 if java:
-    print "These settings don't apply to the Java applet."
+    print("These settings don't apply to the Java applet.")
 )s    </font></p>
 
    <p>TCP game server port: <%(nameval("text", "port_LISTEN", default="", mangling=0))s><br>

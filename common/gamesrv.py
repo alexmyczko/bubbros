@@ -5,7 +5,7 @@ from struct import pack, unpack
 import zlib, os, random, struct, sys
 from hashlib import md5
 from time import time, ctime
-from common.msgstruct import *
+from msgstruct import *
 from errno import EWOULDBLOCK
 
 
@@ -20,7 +20,7 @@ def protofilepath(filename):
     assert component, "invalid file path %r" % (filename,)
     path.insert(0, component)
   path.insert(0, game.FnBasePath)
-  return '/'.join(path)
+  return '/'.join(path).encode('utf-8')   # sent in MSG_MD5_FILE
 
 
 class Icon:
@@ -38,7 +38,7 @@ class Icon:
     framemsgappend(self.msgdef)
 
   def getimage(self):
-    from . import pixmap
+    import pixmap
     bitmap, x, y = self.origin
     image = pixmap.decodepixmap(bitmap.read())
     return pixmap.cropimage(image, (x, y, self.w, self.h))
@@ -87,7 +87,7 @@ class DataChunk:
     client.msgl.append(msgdef)
 
   def getmd5def(self, fileid, data, offset=0):
-    checksum = md5.new(data).digest()
+    checksum = md5(data).digest()
     return message(MSG_MD5_FILE, fileid, protofilepath(self.filename),
                    offset, len(data), checksum)
 
@@ -178,6 +178,8 @@ class Sample(DataChunk):
               DataChunk.getmd5def(self, fileid, datatail, offset=28))
 
   def play(self, lvolume=1.0, rvolume=None, pad=0.5, singleclient=None):
+    if sounds_muted:
+      return    # e.g. while the game recomputes the past (timeline.py)
     if rvolume is None:
       rvolume = lvolume
     lvolume *= 2.0*(1.0-pad)
@@ -225,14 +227,14 @@ class Music(DataChunk):
     if limited and position+blocksize > self.endpos:
       blocksize = self.endpos-position
       if blocksize <= 0:
-        return ''
+        return b''
     #self.f.seek(position)
     #return message(MSG_DEF_MUSIC, self.code, position, self.f.read(blocksize))
     try:
       msg = self.md5msgs[position]
     except KeyError:
       data = self.read((position, blocksize))
-      checksum = md5.new(data).digest()
+      checksum = md5(data).digest()
       msg = message(MSG_MD5_FILE, self.fileid, protofilepath(self.filename),
                     position, blocksize, checksum)
       self.md5msgs[position] = msg
@@ -254,8 +256,12 @@ class Music(DataChunk):
 
 
 def clearsprites():
+  # the sprites are gone from the screen: mark them so, so that a later
+  # kill() of one of them does nothing
+  for s in list(sprites_by_n.values()):
+    s.alive = 0
   sprites_by_n.clear()
-  sprites[:] = ['']
+  sprites[:] = [b'']
 
 def compactsprites(insert_new=None, insert_before=None):
   global sprites, sprites_by_n
@@ -264,7 +270,7 @@ def compactsprites(insert_new=None, insert_before=None):
       insert_before = insert_before.alive
     else:
       insert_before = None
-  newsprites = ['']
+  newsprites = [b'']
   newd = {}
   l = list(sprites_by_n.items())
   l.sort()
@@ -301,7 +307,7 @@ class Sprite:
         -ico.h < y < game.height):
       sprites.append(pack("!hhh", x, y, ico.code))
     else:
-      sprites.append('')  # starts off-screen
+      sprites.append(b'')  # starts off-screen
     sprites_by_n[self.alive] = self
 
   def move(self, x,y, ico=None):
@@ -342,12 +348,12 @@ class Sprite:
     sprites[self.alive] = pack("!hhh", self.x, self.y, ico.code)
 
   def hide(self):
-    sprites[self.alive] = ''
+    sprites[self.alive] = b''
 
   def kill(self):
     if self.alive:
       del sprites_by_n[self.alive]
-      sprites[self.alive] = ''
+      sprites[self.alive] = b''
       self.alive = 0
 
   def prefix(self, n, m=0):
@@ -359,7 +365,7 @@ class Sprite:
 
   def _force_to_front(self):
     info = sprites[self.alive]
-    sprites[self.alive] = ''
+    sprites[self.alive] = b''
     del sprites_by_n[self.alive]
     self.alive = len(sprites)
     sprites_by_n[self.alive] = self
@@ -382,7 +388,7 @@ class Sprite:
           s1._force_to_front()
         assert n1 not in sprites_by_n
       info = sprites[self.alive]
-      sprites[self.alive] = ''
+      sprites[self.alive] = b''
       del sprites_by_n[self.alive]
       self.alive = n1
       sprites_by_n[n1] = self
@@ -427,7 +433,7 @@ class Client:
     self.initialdata = MSG_WELCOME
     self.initialized = 0
     self.msgl = [message(MSG_PING)]
-    self.buf = ""
+    self.buf = b""
     self.players = { }
     self.sounds = None
     self.has_sound = 0
@@ -442,7 +448,7 @@ class Client:
 
   def opengame(self, game):
     if self.initialized == 0:
-      self.initialdata += game.FnDesc + '\n'
+      self.initialdata += (game.FnDesc + '\n').encode('utf-8')
       self.initialized = 1
     if self.initialized == 1:
       if game.broadcast_port:
@@ -461,13 +467,13 @@ class Client:
     if self.initialdata:
       self.send_buffer(self.initialdata)
     elif self.initialized == 2:
-      buffer = ''.join(self.msgl)
+      buffer = b''.join(self.msgl)
       if buffer:
         self.send_buffer(buffer)
       if self.udpsocket is not None:
         if self.sounds:
           if broadcast_extras is None or self not in broadcast_clients:
-            udpdata = ''.join(list(self.sounds.keys()) + [udpdata])
+            udpdata = b''.join(list(self.sounds.keys()) + [udpdata])
           else:
             broadcast_extras.update(self.sounds)
           for key, value in list(self.sounds.items()):
@@ -505,7 +511,7 @@ class Client:
       threads = []
       for t in range(3):
         co = zlib.compressobj(6)
-        threads.append((chr(0x88 + t) + chr(t), co))
+        threads.append((bytes([0x88 + t, t]), co))
       frame = 0
       globalsync = 0
 
@@ -513,15 +519,15 @@ class Client:
         # write three normal packets, one on each thread
         for t in range(3):
           head, co = threads.pop(0)
-          yield head + chr(frame), co
-          threads.append((chr(ord(head[0]) & 0x87) + chr(frame), co))
+          yield head + bytes([frame]), co
+          threads.append((bytes([head[0] & 0x87, frame]), co))
           yield None, None
           frame = (frame + 1) & 0xFF
 
         # sync frame, write two packets (on two threads)
         # and restart compression at the current frame for these threads
         head, co = threads.pop(0)
-        yield head + chr(frame), co
+        yield head + bytes([frame]), co
         co1 = zlib.compressobj(6)
         co2 = zlib.compressobj(6)
         globalsync += 1
@@ -533,13 +539,13 @@ class Client:
           # next of this thread will be a local sync packet
           yield None, co1
           nextframe = frame
-        threads.append((chr(ord(head[0]) | 8) + chr(nextframe), co1))
+        threads.append((bytes([head[0] | 8, nextframe]), co1))
 
         # 2nd packet of the current frame
         head, co = threads.pop(0)
-        yield head + chr(frame), co
+        yield head + bytes([frame]), co
         yield None, co2
-        threads.append((chr(ord(head[0]) | 8) + chr(frame), co2))
+        threads.append((bytes([head[0] | 8, frame]), co2))
         
         yield None, None
         frame = (frame + 1) & 0xFF
@@ -553,7 +559,7 @@ class Client:
         return result
       data = [head, co.compress(framedata), co.flush(zlib.Z_SYNC_FLUSH)]
       if head:
-        result.append(''.join(data))
+        result.append(b''.join(data))
 
   def send_can_mix(self):
     return not self.msgl and self.socket is not None
@@ -564,7 +570,7 @@ class Client:
     except error as e:
       if e.args[0] != EWOULDBLOCK:
         self.msgl = []
-        self.initialdata = ""
+        self.initialdata = b""
         self.disconnect(e, 'emit')
         return
     else:
@@ -595,16 +601,16 @@ class Client:
     except struct.error:
       import traceback
       traceback.print_exc()
-      self.socket.send('\n\n<h1>Protocol Error</h1>\n')
+      self.socket.send(b'\n\n<h1>Protocol Error</h1>\n')
       hs = findsocket('HTTP')
       if hs is not None:
         url = 'http://%s:%s' % (HOSTNAME, displaysockport(hs))
-        self.socket.send('''
+        self.socket.send(('''
 If you meant to point your web browser to this server,
 then use the following address:
 
 <a href="%s">%s</a>
-''' % (url, url))
+''' % (url, url)).encode('utf-8'))
       self.disconnect('protocol error', 'receive')
 
   def input_handler(self):
@@ -687,7 +693,7 @@ then use the following address:
 
   def set_player_name(self, id, name, *rest):
     p = game.FnPlayers()[id]
-    p.setplayername(name)
+    p.setplayername(name.decode('utf-8', 'replace'))
 
   def set_udp_port(self, port, addr=None, *rest):
     if port == MSG_BROADCAST_PORT:
@@ -702,7 +708,7 @@ then use the following address:
       if port == MSG_INLINE_FRAME or port == 0:
         # client requests data in-line on the TCP stream
         self.dyncompress = None
-        from . import udpovertcp
+        import udpovertcp
         self.udpsocket = udpovertcp.SocketMarshaller(self.socket, self)
         s = self.udpsocket.tcpsock
         self.log('set_udp_port: udp-over-tcp')
@@ -822,7 +828,7 @@ class SimpleClient(Client):
   def finishinit(self, game):
     num = 0
     for keyname, icolist, fn in game.FnKeys:
-      self.msgl.append(message(MSG_DEF_KEY, keyname, num,
+      self.msgl.append(message(MSG_DEF_KEY, keyname.encode('utf-8'), num,
                                *[ico.code for ico in icolist]))
       num += 1
   
@@ -852,10 +858,11 @@ bitmaps = {}
 samples = {}
 music_by_id = {}
 currentmusics = [0]
-sprites = ['']
+sprites = [b'']
 sprites_by_n = {}
 recording = None
 game = None
+sounds_muted = 0
 serversockets = {}
 socketsbyrole = {}
 socketports   = {}
@@ -1006,13 +1013,13 @@ def openpingsocket(only_port=None):
   only_port = only_port or PORTS.get('PING', None)
   s = findsocket('PING')
   if s is None:
-    from . import hostchooser
+    import hostchooser
     s = hostchooser.serverside_ping(only_port)
     if s is None:
       return None
     def pingsocket_handler(s=s):
       global game
-      from . import hostchooser
+      import hostchooser
       if game is not None:
         args = game.FnDesc, ('', game.address[1]), game.FnExtraDesc()
       else:
@@ -1036,8 +1043,8 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
     if ServerClass is None:
       from http.server import HTTPServer as ServerClass
     if HandlerClass is None:
-      from . import javaserver
-      from .httpserver import MiniHandler as HandlerClass
+      import javaserver
+      from httpserver import MiniHandler as HandlerClass
     server_address = ('', port or 8000)
     try:
       httpd = ServerClass(server_address, HandlerClass)
@@ -1139,7 +1146,7 @@ class Game:
   def deffieldmsg(self):
     return message(MSG_DEF_PLAYFIELD,
                    self.width, self.height, self.backcolor,
-                   self.FnDesc)
+                   self.FnDesc.encode("utf-8"))
 
   def socketerrors(self, ewtd):
     for c in clients[:]:
@@ -1176,8 +1183,8 @@ class Game:
     return delay
 
   def sendudpdata(self):
-    sprites[0] = ''
-    udpdata = ''.join(sprites)
+    sprites[0] = b''
+    udpdata = b''.join(sprites)
     if len(broadcast_clients) >= 2:
       broadcast_extras = {}
     else:
@@ -1187,7 +1194,7 @@ class Game:
     if recording:
       recording.udpdata(udpdata)
     if broadcast_extras is not None:
-      udpdata = ''.join(list(broadcast_extras.keys()) + [udpdata])
+      udpdata = b''.join(list(broadcast_extras.keys()) + [udpdata])
       try:
         self.broadcast_s.sendto(udpdata,
                                 ('<broadcast>', self.broadcast_port))
@@ -1373,7 +1380,7 @@ else:
           while now >= self.recnext:
             self.recnext += self.sampling
           self.write(message(MSG_RECORDED, udpdata))
-          self.f.write(''.join(self.msgl))
+          self.f.write(b''.join(self.msgl))
           del self.msgl[:]
   
   recording = RecordFile(recordfilename)

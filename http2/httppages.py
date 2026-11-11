@@ -233,13 +233,13 @@ class PageServer:
         if cheat:
             import builtins
             for c in cheat:
-                getattr(__builtin__, '__cheat')(c)
+                getattr(builtins, '__cheat')(c)
         else:
             self.localservers = None
         return self.mainpage(headers, juststarted=('juststarted' in options))
 
     def controlcenterloader(self, headers, **options):
-        host = headers['remote host']
+        host = headers['X-Remote-Host']
         host = socket.gethostbyname(host)
         if host != '127.0.0.1':
             raise HTTPRequestError("Access denied")
@@ -567,7 +567,8 @@ QuoteTranslation[' '] = '+'
 def quote_plus(s):
     """Quote the query fragment of a URL; replacing ' ' with '+'"""
     getter = QuoteTranslation.get
-    return ''.join([getter(c, '%%%02X' % ord(c)) for c in s])
+    # quote the UTF-8 bytes, one %XX per byte
+    return ''.join([getter(chr(b), '%%%02X' % b) for b in s.encode('utf-8')])
 
 
 def main(Game, save_url_to=None, quiet=0):
@@ -586,7 +587,7 @@ def main(Game, save_url_to=None, quiet=0):
             print("Logging to", f.filename)
             sys.stdout = sys.stderr = f
     if save_url_to:
-        data = srv.indexurl + '\n'
+        data = (srv.indexurl + '\n').encode('utf-8')
         def try_to_unlink(fn):
             try:
                 os.unlink(fn)

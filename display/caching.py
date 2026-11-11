@@ -74,11 +74,8 @@ class FileBlock:
 
 
 class Data:
-    SafeChars = {}
-    for c in ".abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
-        SafeChars[c] = c
-    Translate = ''.join([SafeChars.get(chr(c), '_') for c in range(256)])
-    del c, SafeChars
+    # characters kept as they are in cache file names; others become '_'
+    SafeChars = ".abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     Cache = FileCache()
 
     def __init__(self):
@@ -116,7 +113,8 @@ class Data:
         looked up both in the directory SOURCEDIR and with a mangled name
         in the cache directory CACHEDIR."""
         directname = os.path.join(self.SOURCEDIR, *filename.split('/'))
-        mangledname = filename.translate(Data.Translate)
+        mangledname = ''.join([c if c in Data.SafeChars else '_'
+                               for c in filename])
         cachename = os.path.join(self.CACHEDIR, mangledname)
         for name, readonly in ((directname, 1), (cachename, 0)):
             try:
@@ -125,7 +123,7 @@ class Data:
             except (IOError, OSError):
                 pass
             else:
-                if len(data) == length and md5.new(data).digest() == checksum:
+                if len(data) == length and md5(data).digest() == checksum:
                     # correct data
                     self.store(position, data, name, readonly)
                     return 1
@@ -143,10 +141,10 @@ class Data:
         if self.content is not None:
             items = list(self.content.items())
             items.sort()
-            result = ''
+            result = b''
             for position, block in items:
                 if len(result) < position:
-                    result += '\x00' * (position-len(result))
+                    result += b'\x00' * (position-len(result))
                 data = block.read()
                 result = result[:position] + data + result[position+len(data):]
             return result
@@ -156,8 +154,8 @@ class Data:
 
     def fopen(self):
         if self.content is not None:
-            from io import StringIO
-            return StringIO(self.read())
+            from io import BytesIO
+            return BytesIO(self.read())
         else:
             return Data.Cache.access(self.backupfile, 0)
 
