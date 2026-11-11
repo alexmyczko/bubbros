@@ -1,4 +1,4 @@
-import os, sys, random
+import os, sys, random, secrets, re, ast
 from io import StringIO
 import socket, time
 
@@ -37,12 +37,16 @@ class Options:
             raise AttributeError(attr)
 
 
+HOST_RE = re.compile(r'[A-Za-z0-9.-]+$|\[[0-9A-Fa-f:.]+\]$')
+
+
 class PageServer:
     localservers = None
 
     def __init__(self, Game):
         self.Game = Game
-        self.seed = hex(random.randrange(0x1000, 0x10000))
+        # in every URL of the control page: not guessable
+        self.seed = '0x' + secrets.token_hex(8)
         #self.unique_actions = {}
         self.localhost = gamesrv.HOSTNAME
         self.filename = configfile.path(os.path.join(LOCALDIR, os.pardir))
@@ -159,7 +163,12 @@ class PageServer:
             f.close()
         except IOError:
             data = None
-        return eval(data or '{}', {}, {})
+        try:
+            return ast.literal_eval(data or '{}')
+        except (ValueError, SyntaxError):
+            print('! Ignoring the config file, which is not valid',
+                  file=sys.stderr)
+            return {}
 
     def saveoptions(self):
         data = self.loadoptionfile()
@@ -191,6 +200,10 @@ class PageServer:
     def startgame(self):
         self.reloadports()
         options = self.globaloptions
+        # only a level file of the game: a .py level file is executed
+        if options.file not in [path for name, path
+                                in self.Game.FnListBoards()]:
+            raise HTTPRequestError("Unknown level file.")
         kwds = {}
         if options.beginboard is not None:
             kwds['beginboard'] = int(options.beginboard)
@@ -360,15 +373,24 @@ class PageServer:
     def joinloader(self, headers, host=[], port=[], httpport=[],
                    m=[], **options):
         args = self.buildclientoptions()
-        assert len(host) == 1
+        if len(host) != 1:
+            raise HTTPRequestError("Which server?")
         host = host[0]
         if len(port) == 1:
             port = port[0]
         else:
             try:
                 host, port = host.split(':')
-            except:
+            except ValueError:
                 port = None
+        # they become arguments of Client.py
+        if not HOST_RE.match(host):
+            raise HTTPRequestError("Bad server name.")
+        if port:
+            try:
+                port = int(port)
+            except ValueError:
+                raise HTTPRequestError("Bad port number.")
         if args is None:
             # redirect to the Java applet
             try:
@@ -396,7 +418,7 @@ class PageServer:
         script = no_quote_worries(script)
         if m:
             args.insert(0, '-m')
-        args = [script] + args + [address]
+        args = [script] + args + ['--', address]
         schedule_launch(args)
         if m:
             time.sleep(0.5)
@@ -525,7 +547,10 @@ class PageServer:
             result.append(optname + '=' + mode.name)
             uid = mode.unique_id() + '_'
             for key, value in list(options.dict().items()):
-                if key.startswith(uid):
+                # only the options this driver has (zoom, shm...): the
+                # saved options come from forms, and a key like "cfg"
+                # would become another option of Client.py
+                if key.startswith(uid) and key[len(uid):] in mode.options:
                     result.append('--%s=%s' % (key[len(uid):], value))
         return result
 
@@ -634,24 +659,29 @@ def main(Game, save_url_to=None, quiet=0):
             print("Logging to", f.filename)
             sys.stdout = sys.stderr = f
     if save_url_to:
-        data = (srv.indexurl + '\n').encode('utf-8')
+        # the URL, and where this copy of the game is (BubBob.py says so
+        # when it reuses this server)
+        data = (srv.indexurl + '\n' +
+                os.path.abspath(os.path.join(LOCALDIR, os.pardir)) +
+                '\n').encode('utf-8')
         def try_to_unlink(fn):
             try:
                 os.unlink(fn)
-            except:
+            except OSError:
                 pass
         import atexit
         atexit.register(try_to_unlink, save_url_to)
+        # a new file of ours: not through a link someone else put there
+        try_to_unlink(save_url_to)
         try:
-            fno = os.open(save_url_to, os.O_CREAT | os.O_TRUNC | os.O_WRONLY,
-                          0o600)
-            if os.write(fno, data) != len(data):
-                raise OSError
-            os.close(fno)
-        except:
-            f = open(save_url_to, 'w')
-            f.write(data)
-            f.close()
+            fno = os.open(save_url_to, os.O_CREAT | os.O_EXCL | os.O_WRONLY |
+                          getattr(os, 'O_NOFOLLOW', 0), 0o600)
+            try:
+                os.write(fno, data)
+            finally:
+                os.close(fno)
+        except OSError as e:
+            print('cannot write %s: %s' % (save_url_to, e), file=sys.stderr)
     #if webbrowser:
     #    srv.launchbrowser()
 

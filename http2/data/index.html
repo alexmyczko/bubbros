@@ -165,10 +165,11 @@ def show(server, found=found):
     import socket
     addr, (info, ping) = server
     infolst = info.split(':') or ['?']
+    httpport = 'off'
     if len(infolst) >= 3:
-        httpport = infolst.pop(2)
-    else:
-        httpport = 'off'
+        httpport = infolst.pop(2)     # sent by another computer:
+        if not httpport.isdigit():    # a number, or nothing
+            httpport = 'off'
     print('<a href="join.html?host=%s&port=%d&httpport=%s&time=%s">' % (
         addr[0], addr[1], httpport, tim))
     host, port = addr
