@@ -10,8 +10,8 @@ class BaseDisplay:
     def taskbar(self, xxx_todo_changeme):
         (x, y, w, h) = xxx_todo_changeme
         if self.__taskbkgnd is None:
-            pixel = "\x00\x00\x80"
-            hole  = "\x01\x01\x01"
+            pixel = b"\x00\x00\x80"
+            hole  = b"\x01\x01\x01"
             self.__taskbkgnd = self.pixmap(32, 32,
                 ((pixel+hole)*16 + (hole+pixel)*16) * 16, 0x010101)
         for j in range(y, y+h, 32):
