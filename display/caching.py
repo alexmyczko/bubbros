@@ -188,7 +188,6 @@ class Data:
 
 # ____________________________________________________________
 # Temporary files management
-# from the 'py' lib, mostly written by hpk
 
 def try_remove_dir(udir):
     try:
@@ -201,56 +200,12 @@ def try_remove_dir(udir):
     except:
         pass
 
-def make_numbered_dir(prefix='tmp-bub-n-bros-', rootdir=None, keep=0,
-                      lock_timeout = 172800):   # two days
-    """ return unique directory with a number greater than the current
-        maximum one.  The number is assumed to start directly after prefix.
-        Directories with a number less than (maxnum-keep) will be removed.
-    """
-    import atexit, tempfile
-    if rootdir is None:
-        rootdir = tempfile.gettempdir()
-
-    def parse_num(bn):
-        """ parse the number out of a path (if it matches the prefix) """
-        if bn.startswith(prefix):
-            try:
-                return int(bn[len(prefix):])
-            except ValueError:
-                pass
-
-    # compute the maximum number currently in use with the
-    # prefix
-    maxnum = -1
-    for basename in os.listdir(rootdir):
-        num = parse_num(basename)
-        if num is not None:
-            maxnum = max(maxnum, num)
-
-    # make the new directory
-    udir = os.path.join(rootdir, prefix + str(maxnum+1))
-    os.mkdir(udir)
-
-    # try to remove the directory at process exit
-    atexit.register(try_remove_dir, udir)
-
-    # prune old directories
-    for basename in os.listdir(rootdir):
-        num = parse_num(basename)
-        if num is not None and num <= (maxnum - keep):
-            d1 = os.path.join(rootdir, basename)
-            try:
-                t1 = os.stat(d1).st_mtime
-                t2 = os.stat(udir).st_mtime
-                if abs(t2-t1) < lock_timeout:
-                    continue   # skip directories still recently used
-            except:
-                pass
-            try_remove_dir(d1)
-    return udir
-
 def enumtempfiles():
-    tempdir = make_numbered_dir()
+    # a private directory with an unpredictable name (a shared, numbered
+    # name in /tmp could be created first by another user), removed at exit
+    import atexit, tempfile
+    tempdir = tempfile.mkdtemp(prefix='bub-n-bros-')
+    atexit.register(try_remove_dir, tempdir)
     i = 0
     while True:
         yield os.path.join(tempdir, 'b%d' % i)
