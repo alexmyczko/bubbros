@@ -94,12 +94,18 @@ class SoundMode(Mode):
 
 
 def graphicmodeslist():
-    return [
-        GraphicMode('X', 'XWindow (Linux/Unix)',
+    x11 = GraphicMode('X', 'XWindow (Linux/Unix)',
                     ['--shm=yes  use the Shared Memory extension (default)',
                      '--shm=no   disable it (for remote connections or old X servers)',
                      ],
-                    {'shm': 'yes'}),
+                    {'shm': 'yes'})
+    # Chosen automatically only when no other driver is available: its
+    # window cannot be resized or scaled and has no full screen, and in a
+    # Wayland session it goes through XWayland.  --display=x still
+    # selects it.
+    x11.low_priority = 1
+    return [
+        x11,
         GraphicMode('windows', 'MS Windows', []),
         GraphicMode('pygame', 'PyGame library (all platforms)',
                     ['--fullscreen=yes    go full screen (Esc key to exit)',
