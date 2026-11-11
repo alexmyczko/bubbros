@@ -1,24 +1,32 @@
-
  ################################################
 ##       GTK-based implementation of xshm      ##
 ################################################
 
+# PyGTK (GTK 2) does not exist for Python 3, so this uses GTK 3 through
+# PyGObject.  GTK 3 has no GdkPixmap or GC any more: the off-screen
+# image is a cairo surface, and the window paints it when GTK asks.
+# Images keep the same shape as before for pclient.py: (pixbuf,) while
+# not drawn yet, and (surface, None, None) once ready to be drawn.
+
 import os, sys, math
 from modes import KeyPressed, KeyReleased
-import caching
 
 def import_trickery():
-    global gtk, gdk
+    global Gtk, Gdk, GdkPixbuf, GLib, cairo
     argv = sys.argv[:]
     del sys.argv[1:]
-    import gtk
-    from gtk import gdk
+    import gi
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('Gdk', '3.0')
+    gi.require_version('GdkPixbuf', '2.0')
+    from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
+    import cairo
     sys.argv[:] = argv
 import_trickery()
 
 
 class Display:
-    
+
     def __init__(self, width, height, title, zoom="100"):
         if zoom.endswith('%'):
             zoom = zoom[:-1]
@@ -27,64 +35,71 @@ class Display:
         if abs(scale - iscale) < 0.002:
             scale = iscale
         self.scale = scale
-        
+
         self.width  = int(width * scale)
         self.height = int(height * scale)
-        self.tempppmfile = caching.mktemp('.ppm')
 
         # create a top level window
-        w = self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        w = self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         w.connect("destroy", lambda w: sys.exit())
         w.connect("key-press-event", self.key_press_event)
         w.connect("key-release-event", self.key_release_event)
         w.connect("motion-notify-event", self.motion_notify_event)
         w.connect("button-press-event", self.button_press_event)
-        w.add_events(gdk.KEY_PRESS_MASK |
-                     gdk.POINTER_MOTION_MASK |
-                     gdk.BUTTON_PRESS_MASK)
-        w.resize(self.width, self.height)
+        w.add_events(Gdk.EventMask.KEY_PRESS_MASK |
+                     Gdk.EventMask.KEY_RELEASE_MASK |
+                     Gdk.EventMask.POINTER_MOTION_MASK |
+                     Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.area = Gtk.DrawingArea()
+        self.area.set_size_request(self.width, self.height)
+        self.area.connect("draw", self.draw_event)
+        w.add(self.area)
+        w.set_resizable(False)
         w.set_title(title)
-        w.show()
+        w.show_all()
 
-        self.offscreen = gtk.create_pixmap(w.window, self.width, self.height)
-        self.gc = gdk.gc_new(w.window)
-        self.gc.set_rgb_fg_color(gdk.color_parse('#000000'))
+        self.offscreen = cairo.ImageSurface(cairo.FORMAT_RGB24,
+                                            self.width, self.height)
+        # what the window shows: a copy of 'offscreen' made by flip()
+        self.front = cairo.ImageSurface(cairo.FORMAT_RGB24,
+                                        self.width, self.height)
+        self.clear()
 
         self.events_key = []
         self.events_mouse = []
         self.event_motion = None
 
-        pixel = "\x00\x00\x80"
-        hole  = "\x01\x01\x01"
+        pixel = b"\x00\x00\x80"
+        hole  = b"\x01\x01\x01"
         pb = self.pixmap(32, 32, ((pixel+hole)*16 + (hole+pixel)*16) * 16, 0x010101)
         self.taskbkgnd = self.renderpixbuf(pb)
 
-    def taskbar(self, xxx_todo_changeme):
-        (x, y, w, h) = xxx_todo_changeme
+    def taskbar(self, rect):
+        (x, y, w, h) = rect
         scale = self.scale
         x2 = x+w
         y2 = y+h
         x, y, x2, y2 = int(x*scale), int(y*scale), int(x2*scale), int(y2*scale)
-        pixmap, gc, ignored = self.taskbkgnd
-        for j in range(y, y2, 32):
-            for i in range(x, x2, 32):
-                gc.set_clip_origin(i, j)
-                self.offscreen.draw_drawable(gc, pixmap, 0, 0,
-                                             i, j, x2-i, y2-j)
+        surface, ignored1, ignored2 = self.taskbkgnd
+        cr = cairo.Context(self.offscreen)
+        pattern = cairo.SurfacePattern(surface)
+        pattern.set_extend(cairo.EXTEND_REPEAT)
+        matrix = cairo.Matrix()
+        matrix.translate(-x, -y)
+        pattern.set_matrix(matrix)
+        cr.set_source(pattern)
+        cr.rectangle(x, y, x2-x, y2-y)
+        cr.fill()
 
     def pixmap(self, w, h, data, colorkey=-1):
-        filename = self.tempppmfile
-        f = open(filename, 'wb')
-        print('P6', file=f)
-        print(w, h, file=f)
-        print(255, file=f)
-        f.write(data)
-        f.close()
-        pb = gdk.pixbuf_new_from_file(filename)
+        pb = GdkPixbuf.Pixbuf.new_from_bytes(GLib.Bytes.new(data),
+                                             GdkPixbuf.Colorspace.RGB,
+                                             False, 8, w, h, w*3)
         if colorkey >= 0:
-            pb = pb.add_alpha(1, chr(colorkey >> 16),
-                              chr((colorkey >> 8) & 0xFF),
-                              chr(colorkey & 0xFF))
+            # pixels of the colorkey colour become transparent
+            pb = pb.add_alpha(True, colorkey >> 16,
+                              (colorkey >> 8) & 0xFF,
+                              colorkey & 0xFF)
         if self.scale == 1:
             return self.renderpixbuf((pb,))
         else:
@@ -94,32 +109,25 @@ class Display:
         if len(input) == 3:
             return input
         pb, = input
-        pixmap, mask = pb.render_pixmap_and_mask()
-        if mask is not None:
-            gc = gdk.gc_new(self.window.window)
-            gc.set_clip_mask(mask)
-            return (pixmap, gc, mask)
-        else:
-            return (pixmap, self.gc, None)
+        surface = Gdk.cairo_surface_create_from_pixbuf(pb, 1, None)
+        return (surface, None, None)
 
-    def getopticon(self, input, xxx_todo_changeme1, ignored_alpha=255):
-        (x, y, w, h) = xxx_todo_changeme1
+    def getopticon(self, input, rect, ignored_alpha=255):
+        (x, y, w, h) = rect
         if len(input) == 3:
             return None
         pb, = input
         scale = self.scale
-        newpb = gdk.Pixbuf("rgb", 1, 8, w, h)
-        newpb.fill(0)
-        pb.copy_area(x, y, w, h, newpb, 0, 0)
+        newpb = pb.new_subpixbuf(x, y, w, h)
         newpb = newpb.scale_simple(int(w*scale), int(h*scale),
-                                   gdk.INTERP_HYPER)
+                                   GdkPixbuf.InterpType.HYPER)
         if newpb is None:
             return None, None, None
         else:
             return self.renderpixbuf((newpb,))
 
-    def getppm(self, xxx_todo_changeme2, int=int, ceil=math.ceil):
-        (x, y, w, h) = xxx_todo_changeme2
+    def getppm(self, rect, int=int, ceil=math.ceil):
+        (x, y, w, h) = rect
         scale = self.scale
         if isinstance(scale, int):
             x *= scale
@@ -133,13 +141,15 @@ class Display:
             y = int(y*scale)
             w -= x
             h -= y
-        bkgnd = gtk.create_pixmap(self.window.window, w, h)
-        bkgnd.draw_drawable(self.gc, self.offscreen, x, y, 0, 0, w, h)
-        return bkgnd, self.gc, None
+        bkgnd = cairo.ImageSurface(cairo.FORMAT_RGB24, max(w, 1), max(h, 1))
+        cr = cairo.Context(bkgnd)
+        cr.set_source_surface(self.offscreen, -x, -y)
+        cr.paint()
+        return bkgnd, None, None
 
-    def putppm(self, x, y, xxx_todo_changeme3, rect=None, int=int):
-        (pixmap, gc, ignored) = xxx_todo_changeme3
-        if pixmap is None:
+    def putppm(self, x, y, image, rect=None, int=int):
+        (surface, ignored1, ignored2) = image
+        if surface is None:
             return
         scale = self.scale
         if rect is None:
@@ -149,26 +159,37 @@ class Display:
             srcx, srcy, w, h = rect
         x = int(x*scale)
         y = int(y*scale)
-        if gc is not self.gc:
-            gc.set_clip_origin(x-srcx, y-srcy)
-        self.offscreen.draw_drawable(gc, pixmap, srcx, srcy, x, y, w, h)
+        cr = cairo.Context(self.offscreen)
+        cr.set_source_surface(surface, x-srcx, y-srcy)
+        cr.rectangle(x, y, w, h)
+        cr.fill()
+
+    def draw_event(self, widget, cr):
+        cr.set_source_surface(self.front, 0, 0)
+        cr.paint()
+        return True
 
     def flip(self):
-        self.window.window.draw_drawable(self.gc, self.offscreen,
-                                         0, 0, 0, 0, self.width, self.height)
-        gdk.flush()
+        # GTK paints the window later, when it handles the draw event,
+        # but pclient.py changes the offscreen image right after flip()
+        # (it erases the taskbar), so show a copy taken now.
+        cr = cairo.Context(self.front)
+        cr.set_source_surface(self.offscreen, 0, 0)
+        cr.paint()
+        self.area.queue_draw()
         self.events_poll()
 
     def close(self):
         self.window.destroy()
 
     def clear(self):
-        self.offscreen.draw_rectangle(self.gc, 1,
-                                      0, 0, self.width, self.height)
+        cr = cairo.Context(self.offscreen)
+        cr.set_source_rgb(0, 0, 0)
+        cr.paint()
 
     def events_poll(self):
-        while gtk.events_pending():
-            gtk.main_iteration()
+        while Gtk.events_pending():
+            Gtk.main_iteration()
 
     def key_press_event(self, window, event):
         self.events_key.append((event.keyval, KeyPressed))
@@ -198,7 +219,7 @@ class Display:
         result = self.events_mouse
         self.events_mouse = []
         return result
-    
+
     def selectlist(self):
         return []
 

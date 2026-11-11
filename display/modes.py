@@ -107,10 +107,10 @@ def graphicmodeslist():
                      '--transparency=no   disable it (a bit faster)'],
                     {'transparency': 'yes', 'fullscreen': 'no'},
                     url='http://www.pygame.org'),
-        GraphicMode('gtk', 'PyGTK (Gnome)',
+        GraphicMode('gtk', 'GTK 3 (PyGObject)',
                     ['--zoom=xxx%         scale image by xxx %'],
                     {'zoom': '100'},
-                    url='http://www.pygtk.org/'),
+                    url='https://pygobject.gnome.org/'),
         ]
 
 def soundmodeslist():
