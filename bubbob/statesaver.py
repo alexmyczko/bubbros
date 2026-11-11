@@ -9,12 +9,8 @@ from _pickle_support import generator_new
 import types
 
 def standard_build(self):
-    if type(self) is types.InstanceType:
-        # old-style instance
-        return types.InstanceType(self.__class__)
-    else:
-        # new-style instance
-        return type(self).__new__(type(self))
+    # Python 3 has only new-style classes
+    return type(self).__new__(type(self))
 
 # ____________________________________________________________
 
@@ -67,8 +63,7 @@ def copy_function(x, memo):
 
 def copy_method(x, memo):
     return types.MethodType(copyrec(x.__func__, memo),
-                            copyrec(x.__self__, memo),
-                            x.__self__.__class__)
+                            copyrec(x.__self__, memo))
 
 def copy_generator(x, memo):
     try:

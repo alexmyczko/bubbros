@@ -1712,12 +1712,13 @@ except ImportError:
     print("'statesaver' module not compiled, no clock bonus")
     Clock = None
 else:
-    import new
     try:
         from statesaver import standard_build      # PyPy
     except ImportError:
         def standard_build(self):
-            return new.instance(self.__class__)
+            # an instance of the same class without calling __init__,
+            # which is what new.instance() did in Python 2
+            return self.__class__.__new__(self.__class__)
     boards.Copyable.inst_build = standard_build
     gamesrv.Sprite.inst_build = standard_build
 
