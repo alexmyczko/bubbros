@@ -8,8 +8,8 @@ import time
 sys.path.insert(0, os.pardir)
 from common.msgstruct import *
 from common import hostchooser
-from . import modes
-from .modes import KeyPressed, KeyReleased
+import modes
+from modes import KeyPressed, KeyReleased
 
 #import psyco; psyco.full()
 

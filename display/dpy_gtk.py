@@ -4,8 +4,8 @@
 ################################################
 
 import os, sys, math
-from .modes import KeyPressed, KeyReleased
-from . import caching
+from modes import KeyPressed, KeyReleased
+import caching
 
 def import_trickery():
     global gtk, gdk

@@ -1,7 +1,7 @@
 import sys, os, time, random
 from select import select
 from socket import *
-from .metastruct import *
+from metastruct import *
 
 _SERVER = 'ctpug.org.za'
 
@@ -129,8 +129,8 @@ class MetaClientSrv(MessageSocket):
             mysecret = random.randrange(0, 65536)
             packet = ('B' + chr(  secret & 0xFF) + chr(  secret >> 8)
                           + chr(mysecret & 0xFF) + chr(mysecret >> 8))
-            from .socketoverudp import SocketOverUdp
-            from .socketoverudp import SOU_RANGE_START, SOU_RANGE_STOP
+            from socketoverudp import SocketOverUdp
+            from socketoverudp import SOU_RANGE_START, SOU_RANGE_STOP
             for i in range(5):
                 #print 'sending', repr(packet)
                 s.send(packet)
@@ -500,7 +500,7 @@ class MetaClientCli:
         for name in ('*udpsock*', 'CLIENT'):
             if name in PORTS:
                 del PORTS[name]
-        from .socketoverudp import SocketOverUdp
+        from socketoverudp import SocketOverUdp
         sock = SocketOverUdp(s, (originalsecret, remotesecret))
         #print 'sending', repr(packet)
         sock.sendall(packet)

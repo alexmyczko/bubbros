@@ -16,8 +16,8 @@ LOCALDIR = os.path.dirname(os.path.abspath(LOCALDIR))
 sys.path.insert(0, os.path.dirname(LOCALDIR))
 sys.path.insert(0, LOCALDIR)
 import common
-from . import pclient
-from . import modes
+import pclient
+import modes
 
 
 UdpLookForServer = [

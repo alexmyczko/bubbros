@@ -5,7 +5,7 @@ from struct import pack, unpack
 import zlib, os, random, struct, sys
 from hashlib import md5
 from time import time, ctime
-from common.msgstruct import *
+from msgstruct import *
 from errno import EWOULDBLOCK
 
 
@@ -38,7 +38,7 @@ class Icon:
     framemsgappend(self.msgdef)
 
   def getimage(self):
-    from . import pixmap
+    import pixmap
     bitmap, x, y = self.origin
     image = pixmap.decodepixmap(bitmap.read())
     return pixmap.cropimage(image, (x, y, self.w, self.h))
@@ -702,7 +702,7 @@ then use the following address:
       if port == MSG_INLINE_FRAME or port == 0:
         # client requests data in-line on the TCP stream
         self.dyncompress = None
-        from . import udpovertcp
+        import udpovertcp
         self.udpsocket = udpovertcp.SocketMarshaller(self.socket, self)
         s = self.udpsocket.tcpsock
         self.log('set_udp_port: udp-over-tcp')
@@ -1006,13 +1006,13 @@ def openpingsocket(only_port=None):
   only_port = only_port or PORTS.get('PING', None)
   s = findsocket('PING')
   if s is None:
-    from . import hostchooser
+    import hostchooser
     s = hostchooser.serverside_ping(only_port)
     if s is None:
       return None
     def pingsocket_handler(s=s):
       global game
-      from . import hostchooser
+      import hostchooser
       if game is not None:
         args = game.FnDesc, ('', game.address[1]), game.FnExtraDesc()
       else:
@@ -1036,8 +1036,8 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
     if ServerClass is None:
       from http.server import HTTPServer as ServerClass
     if HandlerClass is None:
-      from . import javaserver
-      from .httpserver import MiniHandler as HandlerClass
+      import javaserver
+      from httpserver import MiniHandler as HandlerClass
     server_address = ('', port or 8000)
     try:
       httpd = ServerClass(server_address, HandlerClass)

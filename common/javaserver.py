@@ -1,6 +1,6 @@
 import sys, os
 from io import StringIO
-from . import httpserver
+import httpserver
 
 PLAYERNAMES = ['Bub', 'Bob', 'Boob', 'Beb',
                'Biob', 'Bab', 'Bib',
@@ -68,7 +68,7 @@ def indexloader(**options):
     if 'cheat' in options:
         for opt in options.pop('cheat'):
             __cheat(opt)
-    from . import gamesrv
+    import gamesrv
     if gamesrv.game is None:
         indexdata = EMPTY_PAGE
     else:
@@ -114,7 +114,7 @@ def wav2au(data):
     return data
 
 def sampleloader(code=[], **options):
-    from . import gamesrv
+    import gamesrv
     try:
         data = wave_cache[code[0]]
     except KeyError:

@@ -75,7 +75,7 @@ def pick(hostlist, delay=1):
 
 def find_servers(hostlist=[('127.0.0.1', None), ('<broadcast>', None)],
                  tries=2, delay=0.5, verbose=1, port_needed=1):
-    from . import gamesrv
+    import gamesrv
     if verbose:
         print('Looking for servers in the following list:', file=sys.stderr)
         for host, udpport in hostlist:
@@ -175,7 +175,7 @@ def _lazygetter(hostname, resultlst):
         try:
             hostname = gethostbyaddr(hostname)[0]
             if hostname == 'localhost':
-                from .msgstruct import HOSTNAME as hostname
+                from msgstruct import HOSTNAME as hostname
         except error:
             pass
     finally:

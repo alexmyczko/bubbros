@@ -1,7 +1,7 @@
 import sys
 from io import StringIO
-from . import puremixer
-from .music1 import Music
+import puremixer
+from music1 import Music
 
 
 class Sound:
@@ -136,7 +136,7 @@ def nicefmttext(bits, signed, byteorder):
     return s
 
 def htmloptionstext(nameval):
-    from . import modes
+    import modes
     l = ['<font size=-1>Sampling <%s>' % nameval('select', 'fmt')]
     for name, bits, signed, byteorder in Sound.Formats:
         l.append('<'+nameval('option', 'fmt', name, default='S16_NE')+'>'+

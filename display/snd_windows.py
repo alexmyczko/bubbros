@@ -1,8 +1,8 @@
 import sys
 from io import StringIO
-from . import puremixer
+import puremixer
 import wingame
-from .music1 import Music
+from music1 import Music
 
 
 class Sound:
@@ -81,7 +81,7 @@ class Sound:
 
 
 def htmloptionstext(nameval):
-    from . import modes
+    import modes
     l = ['<font size=-1>Sampling <%s>' % nameval('select', 'bits')]
     for bits in (8, 16):
         l.append('<'+nameval('option', 'bits', str(bits), default='16')+'>'+

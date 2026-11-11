@@ -3,7 +3,7 @@ import os, sys, time, random
 from select import select
 from io import StringIO
 from weakref import WeakValueDictionary
-from .metastruct import *
+from metastruct import *
 from common import httpserver, stdlog
 
 if __name__ == '__main__':

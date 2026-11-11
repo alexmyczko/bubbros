@@ -8,9 +8,9 @@ import time
 from common.msgstruct import *
 from common.pixmap import decodepixmap
 from common import hostchooser
-from . import modes
-from .modes import KeyPressed, KeyReleased
-from . import caching
+import modes
+from modes import KeyPressed, KeyReleased
+import caching
 
 #import psyco; psyco.full()
 

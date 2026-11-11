@@ -6,7 +6,7 @@
 import os
 import pygame
 from pygame.locals import *
-from .modes import KeyPressed, KeyReleased
+from modes import KeyPressed, KeyReleased
 
 
 class Display:

@@ -187,6 +187,6 @@ Please <a href="%s">click here</a> to continue.
 actions_when_finished = []
 
 def my_host():
-    from . import gamesrv
+    import gamesrv
     port = gamesrv.socketports[gamesrv.openhttpsocket()]
     return '127.0.0.1:%d' % port
