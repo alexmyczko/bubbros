@@ -1139,7 +1139,7 @@ class Game:
   def deffieldmsg(self):
     return message(MSG_DEF_PLAYFIELD,
                    self.width, self.height, self.backcolor,
-                   self.FnDesc)
+                   self.FnDesc.encode("utf-8"))
 
   def socketerrors(self, ewtd):
     for c in clients[:]:
