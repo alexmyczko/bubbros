@@ -1376,7 +1376,9 @@ class Umbrella(RandomBonus):
         self.mode = random.choice(Umbrella.Umbrellas)
         RandomBonus.__init__(self, x, y, *self.mode[:2])
     def taken1(self, dragons):
-        for i in range(self.multiply):
+        # the big umbrella has multiply = 3.1416; Python 2's range()
+        # truncated it to 3, Python 3's refuses a float
+        for i in range(int(self.multiply)):
             boards.extra_boardgen(self.raining())
     def raining(self):
         builder, drops, timemax = self.mode[2:]
