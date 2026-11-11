@@ -1,3 +1,4 @@
+#define PY_SSIZE_T_CLEAN   /* '#' formats of PyArg_ParseTuple take Py_ssize_t */
 #include <Python.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -38,9 +39,9 @@ typedef struct {
 } XPixmapObject;
 
 
-#define DisplayObject_Check(v)	((v)->ob_type == &Display_Type)
-staticforward PyTypeObject Display_Type;
-staticforward PyTypeObject XPixmap_Type;
+#define DisplayObject_Check(v)	(Py_TYPE(v) == &Display_Type)
+static PyTypeObject Display_Type;
+static PyTypeObject XPixmap_Type;
 
 
 static void pixmap_dealloc(XPixmapObject* pm)
@@ -308,7 +309,7 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
 {
   int w,h;
   unsigned char* input = NULL;
-  int length;
+  Py_ssize_t length;
   long keycol = -1;
 
   if (!checkopen(self))
@@ -371,11 +372,11 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
         }
 
       /* allocate memory */
-      strblocks = PyString_FromStringAndSize(NULL,
+      strblocks = PyBytes_FromStringAndSize(NULL,
                                              countblocks*sizeof(int));
       if (strblocks == NULL)
         return NULL;
-      strpixels = PyString_FromStringAndSize(NULL,
+      strpixels = PyBytes_FromStringAndSize(NULL,
                                              countpixels*bytes_per_pixel);
       if (strpixels == NULL)
         {
@@ -384,8 +385,8 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
         }
 
       /* write data */
-      pblocks = (unsigned int*) PyString_AS_STRING(strblocks);
-      ppixels = (unsigned char*) PyString_AS_STRING(strpixels);
+      pblocks = (unsigned int*) PyBytes_AS_STRING(strblocks);
+      ppixels = (unsigned char*) PyBytes_AS_STRING(strpixels);
       for (y=0; y<h; y++)
         {
           int opaque = 0;
@@ -581,11 +582,11 @@ static PyObject* display_get(DisplayObject* self, int x, int y, int w, int h)
         int data_scanline = bytes_per_pixel*self->width;
 
         /* allocate memory */
-        strblocks = PyString_FromStringAndSize(NULL,
+        strblocks = PyBytes_FromStringAndSize(NULL,
                                                countblocks*sizeof(int));
         if (strblocks == NULL)
           return NULL;
-        strpixels = PyString_FromStringAndSize(NULL,
+        strpixels = PyBytes_FromStringAndSize(NULL,
                                                countpixels*bytes_per_pixel);
         if (strpixels == NULL)
           {
@@ -594,8 +595,8 @@ static PyObject* display_get(DisplayObject* self, int x, int y, int w, int h)
           }
           
         /* write data */
-        pblocks = (unsigned int*) PyString_AS_STRING(strblocks);
-        ppixels = (unsigned char*) PyString_AS_STRING(strpixels);
+        pblocks = (unsigned int*) PyBytes_AS_STRING(strblocks);
+        ppixels = (unsigned char*) PyBytes_AS_STRING(strpixels);
         data += bytes_per_pixel*(x+y*self->width);
         for (y=0; y<original_h; y++)
           {
@@ -747,7 +748,8 @@ static PyObject* display_overlay(DisplayObject* self, PyObject* args,
       unsigned int* src;
       unsigned char* srcdata;
       unsigned char* original_srcdata;
-      int length1, length2, firstline=0, firstcol=0;
+      Py_ssize_t length1, length2;
+      int firstline=0, firstcol=0;
       unsigned int bytes_per_pixel = self->plane.m_shm_image->bits_per_pixel/8;
       memcpy_alpha_fn memcpy_alpha;
       unsigned char* data = get_dpy_data(self);
@@ -838,10 +840,10 @@ static PyObject* display_overlay(DisplayObject* self, PyObject* args,
                   PyObject* strpixels;
                   unsigned char* ppixels;
                   
-                  strpixels = PyString_FromStringAndSize(NULL, length2);
+                  strpixels = PyBytes_FromStringAndSize(NULL, length2);
                   if (strpixels == NULL)
                     return NULL;
-                  ppixels = (unsigned char*) PyString_AS_STRING(strpixels);
+                  ppixels = (unsigned char*) PyBytes_AS_STRING(strpixels);
                   ppixels += srcdata - original_srcdata;
                   
                   do
@@ -1118,12 +1120,12 @@ static PyObject* display_flip1(DisplayObject* self, PyObject* args)
 
 static PyObject* display_fd1(DisplayObject* self, PyObject *args)
 {
-  return PyInt_FromLong(ConnectionNumber(self->dpy));
+  return PyLong_FromLong(ConnectionNumber(self->dpy));
 }
 
 static PyObject* display_shmmode(DisplayObject* self, PyObject *args)
 {
-  return PyInt_FromLong(self->shmmode);
+  return PyLong_FromLong(self->shmmode);
 }
 
 static PyMethodDef display_methods[] = {
@@ -1142,50 +1144,23 @@ static PyMethodDef display_methods[] = {
   {NULL,		NULL}		/* sentinel */
 };
 
-static PyObject* display_getattr(DisplayObject* self, char* name)
-{
-  return Py_FindMethod(display_methods, (PyObject*)self, name);
-}
-
-
-statichere PyTypeObject Display_Type = {
-	PyObject_HEAD_INIT(NULL)
-	0,			/*ob_size*/
-	"Display",		/*tp_name*/
-	sizeof(DisplayObject),	/*tp_basicsize*/
-	0,			/*tp_itemsize*/
-	/* methods */
-	(destructor)display_dealloc, /*tp_dealloc*/
-	0,			/*tp_print*/
-	(getattrfunc)display_getattr, /*tp_getattr*/
-	0,			/*tp_setattr*/
-	0,			/*tp_compare*/
-	0,			/*tp_repr*/
-	0,			/*tp_as_number*/
-	0,			/*tp_as_sequence*/
-	0,			/*tp_as_mapping*/
-	0,			/*tp_hash*/
-	0,			/*tp_call*/
+/* The methods are found through tp_methods; Python 3 has no
+   Py_FindMethod() for a tp_getattr function to use. */
+static PyTypeObject Display_Type = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	.tp_name = "xshm.Display",
+	.tp_basicsize = sizeof(DisplayObject),
+	.tp_dealloc = (destructor)display_dealloc,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
+	.tp_methods = display_methods,
 };
 
-statichere PyTypeObject XPixmap_Type = {
-	PyObject_HEAD_INIT(NULL)
-	0,			/*ob_size*/
-	"Pixmap",		/*tp_name*/
-	sizeof(XPixmapObject),	/*tp_basicsize*/
-	0,			/*tp_itemsize*/
-	/* methods */
-	(destructor)pixmap_dealloc, /*tp_dealloc*/
-	0,			/*tp_print*/
-	0,			/*tp_getattr*/
-	0,			/*tp_setattr*/
-	0,			/*tp_compare*/
-	0,			/*tp_repr*/
-	0,			/*tp_as_number*/
-	0,			/*tp_as_sequence*/
-	0,			/*tp_as_mapping*/
-	0,			/*tp_hash*/
-	0,			/*tp_call*/
+static PyTypeObject XPixmap_Type = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	.tp_name = "xshm.Pixmap",
+	.tp_basicsize = sizeof(XPixmapObject),
+	.tp_dealloc = (destructor)pixmap_dealloc,
+	.tp_flags = Py_TPFLAGS_DEFAULT,
 };
 
 
@@ -1194,9 +1169,13 @@ static PyMethodDef ShmMethods[] = {
            {NULL,       NULL}         /* Sentinel */
        };
 
-void initxshm(void)
+static struct PyModuleDef xshmmodule = {
+  PyModuleDef_HEAD_INIT, "xshm", NULL, -1, ShmMethods
+};
+
+PyMODINIT_FUNC PyInit_xshm(void)
 {
-  Display_Type.ob_type = &PyType_Type;
-  XPixmap_Type.ob_type = &PyType_Type;
-  Py_InitModule("xshm", ShmMethods);
+  if (PyType_Ready(&Display_Type) < 0 || PyType_Ready(&XPixmap_Type) < 0)
+    return NULL;
+  return PyModule_Create(&xshmmodule);
 }
