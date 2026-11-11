@@ -122,4 +122,4 @@ from boarddef import RSpringy, ROrcy, RGramy, RBlitzy
             print("\n\nclass levelFinal(boarddef.Level):")
 
         printlvl(level)
-	print()
+        print()

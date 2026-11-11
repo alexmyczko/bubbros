@@ -56,11 +56,11 @@ def initpalettelut ():
     # Palette 0 must contain NO duplicate colors.
     PaletteIndex = {}
     for i in range (PALETTESIZE):
-	v = Palettes[i]
+        v = Palettes[i]
         #if v & 0xff == 0 and (v >> 8) & 0xff == 0x87 and (v >> 16) & 0xff == 0:
         #    print 'FOUND'
-	s = "".join ([chr ((v >> shift) & 0xff) for shift in (0,8,16)])
-	PaletteIndex[s] = i
+        s = "".join ([chr ((v >> shift) & 0xff) for shift in (0,8,16)])
+        PaletteIndex[s] = i
     # invalidate COLORS, but match the length to the number of alt palettes.
     COLORS = list(range((len (Palettes) / PALETTESIZE) - 1))
     #print 'COLORS',COLORS
@@ -124,16 +124,16 @@ def palettepixelmap (r, g, b):
 #    print max(r,g,b)
     packed = chr(r) + chr(g) + chr(b)
     try:
-	index = PaletteIndex[packed]
+        index = PaletteIndex[packed]
         #print 'index %r' % index
 #        print 'USING', usingpalette
-	v = thispalette[index] #Palettes[(PALETTESIZE * (usingpalette + 1)) + index]
+        v = thispalette[index] #Palettes[(PALETTESIZE * (usingpalette + 1)) + index]
 #        print 'hit! %r' % packed
 #        print '-> %r' % (chr(v & 0xff) + chr ((v >> 8) & 0xff) + chr((v >> 16) & 0xff))
 #        print '%r : %r' % (Palettes[index], Palettes[PALETTESIZE + index])
-	return v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff
+        return v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff
     except KeyError:
-	return r,g,b
+        return r,g,b
 
 def ppmbreak (f):
     sig = f.readline ().strip ()
@@ -163,7 +163,7 @@ def paletterotate (imglist, chr=chr, int=int, ord=ord):
 #        lut = {}
 #        for         
         thispalette = Palettes[(PALETTESIZE * (reserved + 1)):(PALETTESIZE * (reserved + 2))]
-	# wot is this? _ means unused?
+        # wot is this? _ means unused?
 #       (_, _, otherimage) = imglist[1-n]
         image = []
         colormap = COLORMAPS[reserved]
@@ -242,7 +242,7 @@ def convert (name):
         paletted = True
     else:
         imglist.append(ppmbreak (open (name % 1, 'rb')))
-	rotate (imglist)
+        rotate (imglist)
     writeout (imglist, name, paletted)
 
 def updatecheck ():

@@ -278,8 +278,8 @@ class Shape:
         if self.straightfall:
             lvl.genwalls.append((RandomLevel.prevent_straight_fall, ))
 
-	if self.mirrored:
-	    lvl.genwalls.append((RandomLevel.mirror, ))
+        if self.mirrored:
+            lvl.genwalls.append((RandomLevel.mirror, ))
 
         if self.enlargeholes:
             lvl.genwalls.append((RandomLevel.enlarge_tiny_holes, ))

@@ -29,10 +29,10 @@ while idx < len(sys.argv):
         show_lvl |= 2
         n_lvls = 2
     if arg == '-seed':
-	arg = sys.argv[idx]
-	idx += 1
-	print("Using seed: " + arg + "\n")
-	random.seed(arg)
+        arg = sys.argv[idx]
+        idx += 1
+        print("Using seed: " + arg + "\n")
+        random.seed(arg)
 
 def printlvl(level):
     if show_lvl:
