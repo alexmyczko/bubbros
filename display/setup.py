@@ -1,7 +1,11 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
-from distutils.core import setup
-from distutils.extension import Extension
+# distutils was removed in Python 3.12; setuptools provides the same API
+try:
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup
+    from distutils.extension import Extension
 
 setup ( name="xshm",
         version="0.2",

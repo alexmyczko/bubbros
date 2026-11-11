@@ -1,2 +1,4 @@
+PYTHON ?= python3
+
 statesaver.so: statesaver.c
-	python setup.py build_ext -i
+	$(PYTHON) setup.py build_ext -i
