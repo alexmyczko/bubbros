@@ -104,7 +104,7 @@ def load(filename):
                 keycol1 = KEYCOL
         if result is not None:
             w, h, data = macbinary.image2rgb(result)
-            ppmdata = "P6\n%d %d\n255\n%s" % (w, h, data)
+            ppmdata = b"P6\n%d %d\n255\n" % (w, h) + data
             result = gamesrv.newbitmap(ppmdata, keycol1), (0, 0, w, h)
         cache[code] = result
         return result
