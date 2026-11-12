@@ -127,6 +127,24 @@ class OneWindow(unittest.TestCase):
         self.assertRaises(ChildProcessError, os.waitpid, window.pid, 0)
 
 
+class StopClosesWindow(unittest.TestCase):
+
+    def test_stop_closes_the_game_window(self):
+        import subprocess
+        window = subprocess.Popen([sys.executable, '-c',
+                                   'import time; time.sleep(30)'])
+        self.addCleanup(window.wait)
+        httppages.client_pid = window.pid
+        self.addCleanup(setattr, httppages, 'client_pid', None)
+        httppages.close_client()
+        self.assertIsNone(httppages.client_pid)
+        self.assertRaises(ChildProcessError, os.waitpid, window.pid, 0)
+
+    def test_nothing_to_close(self):
+        httppages.client_pid = None
+        httppages.close_client()          # no error
+
+
 class ConfigFile(unittest.TestCase):
 
     def test_config_file_is_data_not_code(self):

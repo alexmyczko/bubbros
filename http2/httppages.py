@@ -346,6 +346,7 @@ class PageServer:
                 #'metapublish': gamesrv.game and my_server_meta_address(),
                 #'localdir': LOCALDIR,
                 }
+            close_client()
             gamesrv.closeeverything()
             return httpserver.load(os.path.join(LOCALDIR, 'data', 'stop.html'),
                                    'text/html', locals=locals)
@@ -714,6 +715,19 @@ def client_running():
         return True
     client_pid = None
     return False
+
+def close_client():
+    """Close the game window we started, so that it does not outlive
+    the page that opened it."""
+    global client_pid
+    if client_running():
+        import signal
+        try:
+            os.kill(client_pid, signal.SIGTERM)
+            os.waitpid(client_pid, 0)
+        except OSError:
+            pass
+        client_pid = None
 
 def schedule_launch(args):
     httpserver.actions_when_finished.append(lambda args=args: launch(args))
