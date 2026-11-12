@@ -151,6 +151,15 @@ class Display:
         pygame.display.flip()
         events_dispatch()
 
+    def raise_window(self):
+        # on Wayland the compositor decides: it may only mark the
+        # window as asking for attention
+        try:
+            from pygame._sdl2.video import Window
+            Window.from_display_module().focus()
+        except Exception:
+            pass
+
     def close(self):
         self.showmouse(1)
         pygame.display.quit()

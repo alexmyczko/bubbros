@@ -184,6 +184,12 @@ class Playfield:
 
     def run(self, mode, udp_over_tcp='auto'):
         self.setup(mode, udp_over_tcp)
+        # the control page sends SIGUSR1 when the player asks to join
+        # again while this window is open: bring it to the front
+        self.raise_requested = False
+        import signal
+        if hasattr(signal, 'SIGUSR1'):
+            signal.signal(signal.SIGUSR1, self.request_raise)
         try:
             self.mainloop()
         finally:
@@ -193,6 +199,14 @@ class Playfield:
                 self.s.close()
             except:
                 pass
+
+    def request_raise(self, *ignored):
+        self.raise_requested = True
+
+    def raise_window(self):
+        self.raise_requested = False
+        if hasattr(self.dpy, 'raise_window'):
+            self.dpy.raise_window()
 
     def mainloop(self):
         pss = hostchooser.serverside_ping()
@@ -207,6 +221,8 @@ class Playfield:
                 self.processkeys()
             iwtd, owtd, ewtd = select(self.iwtd, [], [], self.animdelay)
             self.animdelay = 0.5
+            if self.raise_requested and self.dpy:
+                self.raise_window()
             if self.dpy:
                 self.processkeys()
             if self.s in iwtd:
