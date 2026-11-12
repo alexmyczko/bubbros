@@ -419,10 +419,15 @@ class PageServer:
         if m:
             args.insert(0, '-m')
         args = [script] + args + ['--', address]
-        schedule_launch(args)
+        if client_running():
+            # one game window is enough, also for several players at this
+            # computer: each one clicks on a free dragon in it
+            s = 'The game window is already open.  Close it to join another game.'
+        else:
+            schedule_launch(args)
+            s = 'Connecting to %s.' % address
         if m:
             time.sleep(0.5)
-            s = 'Connecting to %s.' % address
             return None, self.metaserverpage(headers) + '&head=' + quote_plus(s)
         #elif my_server_address() == address:
         #    endtime = time.time() + 3.0
@@ -693,10 +698,28 @@ def main(Game, save_url_to=None, quiet=0):
 # and the browser gets confused
 
 
+client_pid = None    # the game window we started, while it runs
+
+def client_running():
+    """Is the game window we started still open?  Also collects it when
+    it has ended, so that it does not stay behind as a zombie."""
+    global client_pid
+    if client_pid is None:
+        return False
+    try:
+        pid, status = os.waitpid(client_pid, os.WNOHANG)
+    except (ChildProcessError, AttributeError):
+        pid = client_pid
+    if pid == 0:
+        return True
+    client_pid = None
+    return False
+
 def schedule_launch(args):
     httpserver.actions_when_finished.append(lambda args=args: launch(args))
 
 def launch(args):
+    global client_pid
     # platform-specific hacks
     print('Running client ->  ', ' '.join(args))
     if 0:  # OLD CODE sys.platform == 'darwin':   # must start as a UI process
@@ -725,7 +748,9 @@ def launch(args):
                 except error:
                     pass
                 else:
-                    if os.fork():
+                    pid = os.fork()
+                    if pid:
+                        client_pid = pid
                         return # in parent -- done, continue
                     # in child
                     for fd in range(3, min(16384, hard)):
