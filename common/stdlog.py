@@ -53,8 +53,12 @@ class LogFile:
         if lt[:4] != self.lasttime:
             self.lasttime = lt[:4]
             if self.f.tell() >= self.limitsize:
-                self.f.seek(-(self.limitsize>>1), 1)
-                data = self.f.read()
+                # keep the second half.  A text file cannot seek back from
+                # where it is, so read that half in binary
+                self.f.flush()
+                with open(self.filename, 'rb') as g:
+                    g.seek(-(self.limitsize>>1), 2)
+                    data = g.read().decode('utf-8', 'replace')
                 self.f.seek(0)
                 self.f.write('(...)' + data)
                 self.f.truncate()
