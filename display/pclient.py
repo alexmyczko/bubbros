@@ -524,6 +524,9 @@ class Playfield:
             self.initial_iwtd.append(self.udpsock)
         if 'sendudpto' in PORTS:
             args = (PORTS['sendudpto'],)
+        # the address the meta-server saw is text, the wire wants bytes
+        args = tuple(a.encode('ascii') if isinstance(a, str) else a
+                     for a in args)
         outbound = []
         outbound.append(message(CMSG_UDP_PORT, port, *args))
         if self.snd and self.snd.has_music:

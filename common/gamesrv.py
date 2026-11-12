@@ -720,6 +720,8 @@ then use the following address:
           else:
             self.udpsocket = socket(AF_INET, SOCK_DGRAM)
             self.udpsocket.setblocking(0)
+            if isinstance(addr, bytes):
+              addr = addr.decode('ascii', 'replace')
             addr = addr or self.addr[0]
             self.udpsocket.connect((addr, port))
         except error as e:
