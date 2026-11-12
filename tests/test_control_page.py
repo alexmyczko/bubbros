@@ -90,6 +90,43 @@ class Launch(unittest.TestCase):
                           pages)
 
 
+class OneWindow(unittest.TestCase):
+
+    def setUp(self):
+        self.launched = []
+        self.addCleanup(setattr, httppages, 'schedule_launch',
+                        httppages.schedule_launch)
+        httppages.schedule_launch = self.launched.append
+        self.addCleanup(setattr, httppages, 'client_pid', None)
+
+    def join(self):
+        pages = FakePages({})
+        pages.metaserverpage = lambda headers: 'http://meta.example/?x=1'
+        return httppages.PageServer.joinloader(
+            pages, {}, host=['example.org'], port=['1234'], m=['1'])
+
+    def test_second_click_opens_no_second_window(self):
+        import subprocess
+        window = subprocess.Popen([sys.executable, '-c',
+                                   'import time; time.sleep(30)'])
+        self.addCleanup(window.wait)
+        self.addCleanup(window.kill)
+        httppages.client_pid = window.pid
+        f, url = self.join()
+        self.assertEqual(self.launched, [])
+        self.assertIn('already+open', url)
+
+    def test_closed_window_is_collected(self):
+        import subprocess
+        window = subprocess.Popen([sys.executable, '-c', 'pass'])
+        os.waitid(os.P_PID, window.pid, os.WEXITED | os.WNOWAIT)
+        httppages.client_pid = window.pid
+        f, url = self.join()
+        self.assertEqual(len(self.launched), 1)
+        self.assertIsNone(httppages.client_pid)   # no zombie left
+        self.assertRaises(ChildProcessError, os.waitpid, window.pid, 0)
+
+
 class ConfigFile(unittest.TestCase):
 
     def test_config_file_is_data_not_code(self):
