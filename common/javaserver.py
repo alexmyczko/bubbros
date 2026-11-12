@@ -66,8 +66,11 @@ def playernames(options):
 
 def indexloader(**options):
     if 'cheat' in options:
-        for opt in options.pop('cheat'):
-            __cheat(opt)
+        cheats = options.pop('cheat')
+        # a developer's tool: off unless asked for when starting the game
+        if os.environ.get('BUBBROS_CHEATS') == '1':
+            for opt in cheats:
+                __cheat(opt)
     import gamesrv
     if gamesrv.game is None:
         indexdata = EMPTY_PAGE

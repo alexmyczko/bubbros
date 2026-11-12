@@ -1,4 +1,4 @@
-import sys, os, time, random
+import sys, os, time, random, ast
 from select import select
 from socket import *
 from metastruct import *
@@ -46,7 +46,7 @@ def configured_address():
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
     try:
         with open(configfile.path(root)) as f:
-            data = eval(f.read().strip() or '{}', {}, {})
+            data = ast.literal_eval(f.read().strip() or '{}')
     except (OSError, SyntaxError, ValueError):
         return None
     return data.get(gethostname(), {}).get('metaserver')

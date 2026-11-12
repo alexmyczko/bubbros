@@ -35,27 +35,37 @@ except:
         username = '-'+pwd.getpwuid(os.getuid())[0]
     except:
         username = ''
+# The address of the running local server, so that a second BubBob.py
+# opens it instead of starting another one.  In the user's private
+# runtime directory when there is one, not in the shared /tmp.
 TAGFILENAME = 'BubBob-%s%s.url' % (socket.gethostname(), username)
-TAGFILENAME = os.path.join(tempfile.gettempdir(), TAGFILENAME)
+TAGFILENAME = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or
+                           tempfile.gettempdir(), TAGFILENAME)
 
 
 def load_url_file():
+    """(url, port, source directory) of the running local server."""
     try:
-        url = open(TAGFILENAME, 'r').readline().strip()
-    except (OSError, IOError):
-        return None, None
+        fd = os.open(TAGFILENAME, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+    except OSError:
+        return None, None, None
+    with os.fdopen(fd, 'r') as f:
+        if hasattr(os, 'getuid') and os.fstat(fd).st_uid != os.getuid():
+            return None, None, None       # someone else's file
+        lines = f.read(4096).split('\n')
+    url, srcdir = lines[0].strip(), (lines[1:] or [''])[0].strip()
     if not url.startswith('http://127.0.0.1:'):
-        return None, None
+        return None, None, None
     url1 = url[len('http://127.0.0.1:'):]
     try:
         port = int(url1[:url1.index('/')])
     except ValueError:
-        return None, None
-    return url, port
+        return None, None, None
+    return url, port, srcdir
 
 def look_for_local_server():
     # Look for a running local web server
-    url, port = load_url_file()
+    url, port, srcdir = load_url_file()
     if port is None:
         return None
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,10 +78,10 @@ def look_for_local_server():
         s.close()
     except Exception as e:
         pass
-    url2, port2 = load_url_file()
+    url2, port2, srcdir = load_url_file()
     if port2 != port:
         return None
-    return url2
+    return url2, srcdir
 
 def start_local_server():
     MAINSCRIPT = os.path.join('bubbob', 'bb.py')
@@ -119,15 +129,23 @@ def start_local_server():
 
 
 # main
-url = look_for_local_server()
-if not url:
+found = look_for_local_server()
+if found:
+    url, srcdir = found
+    # a second BubBob.py, perhaps from another copy of the game, opens the
+    # game server that runs already: say so
+    print('Using the game server already running from %s.' % (
+        srcdir or 'another directory'))
+    print('To start a new one, stop that one first (from its page, "Stop").')
+else:
     start_local_server()
     # wait for up to 5 seconds for the server to start
     for i in range(10):
         import time
         time.sleep(0.5)
-        url = look_for_local_server()
-        if url:
+        found = look_for_local_server()
+        if found:
+            url = found[0]
             break
     else:
         print('The local server is not starting, giving up.', file=sys.stderr)

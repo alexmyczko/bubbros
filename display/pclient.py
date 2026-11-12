@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import sys, os
+import sys, os, ast
 from socket import *
 from select import select
 import struct, zlib
@@ -789,7 +789,7 @@ class Playfield:
                         f = open(self.trackcfgfile, 'r')
                         data = f.read().strip()
                         f.close()
-                        d = eval(data or '{}', {}, {})
+                        d = ast.literal_eval(data or '{}')
                     except:
                         print('Invalid config file format', file=sys.stderr)
                     else:

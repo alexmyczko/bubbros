@@ -104,12 +104,33 @@ def fileloader(filename, mimetype=None):
 class HTTPRequestError(Exception):
     pass
 
+# The game's own pages (the control page) are only for the player at this
+# computer: gamesrv sets this, the public meta-server does not.  A web
+# page from elsewhere, open in the same browser, could otherwise send
+# requests to them, even read the answers with DNS rebinding.
+LOCAL_ONLY = False
+LOCAL_HOSTS = ('127.0.0.1', 'localhost', '[::1]')
+
+def is_local_request(client_address, headers):
+    if client_address[0] not in ('127.0.0.1', '::1'):
+        return False
+    host = (headers.get('host') or '').lower()
+    if host.startswith('['):
+        name = host[:host.find(']') + 1]
+    else:
+        name = host.split(':')[0]
+    return name in LOCAL_HOSTS
+
 class MiniHandler(SimpleHTTPRequestHandler):
     # a connection that sends nothing must not hang the single-threaded
     # server (the game loop, or the meta-server) for ever
     timeout = 10
 
     def send_head(self, query=''):
+        if LOCAL_ONLY and not is_local_request(self.client_address,
+                                               self.headers):
+            self.send_error(403, "This page is only for this computer")
+            return None
         addr, host, path, query1, fragment = urllib.parse.urlsplit(self.path)
         path = canonicalpath(path)
         if path not in pathloaders:
