@@ -1,5 +1,5 @@
 from socket import *
-import os, sys, time, random
+import os, sys, time, random, re
 from select import select
 from io import StringIO, BytesIO
 from weakref import WeakValueDictionary
@@ -25,9 +25,24 @@ if not ICONS:
     ICONS = [open(os.path.join(HERE, 'mbub.png'), 'rb').read()]
 MAX_SERVERS = 50
 MAX_CONNEXIONS = 60
+MAX_BUFFER = 65536          # bytes of incomplete message kept per connection
+SEND_TIMEOUT = 5.0          # a peer that does not read is dropped
+IDLE_TIMEOUT = 120.0        # connections without a listed game
+SWEEP_INTERVAL = 10.0       # how often mainloop() looks for idle ones
+MAX_TRACEBACKS = 100        # crash report files kept
+MAX_TRACEBACK_SIZE = 16384   # a real traceback is a few KB
+# where crash reports go: systemd's StateDirectory=, else next to this file
+TB_DIR = os.environ.get('STATE_DIRECTORY', '').split(':')[0] or HERE
 
 
 serversockets = {}
+connexions = {}     # socket -> Connexion, for the idle check of mainloop()
+
+def tracebackfiles():
+    try:
+        return [s for s in os.listdir(TB_DIR) if s.startswith('tb-')]
+    except OSError:
+        return []
 
 class MetaServer:
 
@@ -123,18 +138,34 @@ class Connexion(MessageSocket):
         self.addr = addr
         self.key = '%s:%d' % addr
         self.serverkey = None
+        self.lastseen = time.time()
         print('[', self.key)
         self.backlinks = WeakValueDictionary()
         if len(serversockets) >= MAX_CONNEXIONS:
             self.disconnect()
             raise OverflowError
+        # sendall() must not block the whole server on a peer that does
+        # not read
+        s.settimeout(SEND_TIMEOUT)
         serversockets[s] = self.receive, self.disconnect
+        connexions[s] = self
+
+    def receive(self):
+        self.lastseen = time.time()
+        MessageSocket.receive(self)
+        if len(self.buffer) > MAX_BUFFER:
+            raise OverflowError('message too long')
 
     def disconnect(self):
         metaserver.unpublish(self)
         try:
             del serversockets[self.s]
         except KeyError:
+            pass
+        connexions.pop(self.s, None)
+        try:
+            self.s.close()
+        except error:
             pass
         print(']', self.key)
 
@@ -143,6 +174,9 @@ class Connexion(MessageSocket):
         if len(info) > 15000:
             raise OverflowError
         info = decodedict(info)
+        # replace the previous description, do not add to it
+        self.serverinfo = dict((k, self.serverinfo[k])
+                               for k in ('time', 'icon', 'iconformat'))
         self.serverinfo.update(info)
 
     def msg_startserver(self, port, *rest):
@@ -172,12 +206,19 @@ class Connexion(MessageSocket):
 
     def route(self, origin, msgcode, *rest):
         self.backlinks[origin.key] = origin
-        self.s.sendall(message(msgcode, origin.key.encode('utf-8'), *rest))
+        try:
+            self.s.sendall(message(msgcode, origin.key.encode('utf-8'), *rest))
+        except error:
+            # this peer does not read: drop it, not the one that wrote
+            drop(self.s, self.disconnect)
 
     def msg_traceback(self, tb, *rest):
-        f = stdlog.LogFile('tb-%s.log' % (self.addr[0],))
+        name = os.path.join(TB_DIR, 'tb-%s.log' % (self.addr[0],))
+        if not os.path.exists(name) and len(tracebackfiles()) >= MAX_TRACEBACKS:
+            return
+        f = stdlog.LogFile(name)
         if f:
-            print(tb.decode('utf-8', 'replace'), file=f)
+            print(tb[:MAX_TRACEBACK_SIZE].decode('utf-8', 'replace'), file=f)
             f.close()
 
     def msg_udp_addr(self, pattern, *rest):
@@ -225,24 +266,33 @@ f = open(os.path.join(HERE, 'index.html'), 'r')
 HEADER, ROW, FOOTER = f.read().split('\\')
 f.close()
 
+def safe_join(join):
+    """The 'join' address of the player's own game page, host:port/seed,
+    or None if it has anything else in it."""
+    if re.match(r'[A-Za-z0-9.:\[\]-]+/[A-Za-z0-9]+$', join or ''):
+        return join
+    return None
+
+def httpport_of(info):
+    try:
+        return int(info.get('httpport'))
+    except (TypeError, ValueError):
+        return None
+
 def makehosthtml(srv, bottommsg, join):
     info = srv.serverinfo
     hostname, port = srv.serverkey.split(':')
-    try:
-        fullhostname = gethostbyaddr(hostname)[0]
-    except:
-        fullhostname = hostname
+    # the IP address, as given by the connection: a reverse DNS lookup
+    # here would block the whole server for each row
+    fullhostname = hostname
     url = None
     if join:
         url = "http://%s/join.html?host=%s&port=%s&httpport=%s&m=%s" % (
-            join, hostname, port, totext(info.get('httpport') or 'off'),
+            join, hostname, port, httpport_of(info) or 'off',
             time.time())
     else:
-        try:
-            httpport = int(info.get('httpport'))
-        except:
-            pass
-        else:
+        httpport = httpport_of(info)
+        if httpport is not None:
             url = "http://%s:%s/" % (hostname, httpport)
             javamsg = """
 <p>Click on a server above to join the game.  This only works if:
@@ -262,9 +312,8 @@ of the client, which can cope with all of the above problems.</p>
     return result
 
 def indexloader(headers, join=[], head=[], **options):
-    if join:
-        join = join[0]
-    data = [HEADER % (head and head[0] or '')]
+    join = safe_join(join and join[0])
+    data = [HEADER % htmlquote(head and head[0] or '')]
     bottommsg = []
     if metaserver.ServersList:
         counter = 0
@@ -293,7 +342,7 @@ def indexloader(headers, join=[], head=[], **options):
     else:
         extrafooter = ''
     bottommsg = '\n'.join(bottommsg)
-    tbfiles = [s for s in os.listdir('.') if s.startswith('tb-')]
+    tbfiles = tracebackfiles()
     if tbfiles:
         tbfiles = len(tbfiles)
     else:
@@ -329,21 +378,42 @@ def openhttpsocket(port = META_SERVER_HTTP_PORT):
 
 # ____________________________________________________________
 
+def drop(s, close):
+    """Close a connection that failed: a malformed message, a peer that
+    does not read, too much data.  Leaving it open kept one of the
+    MAX_CONNEXIONS slots, and its buffer, forever."""
+    if close is not None:
+        try:
+            close()
+        except Exception:
+            pass
+    serversockets.pop(s, None)
+    connexions.pop(s, None)
+    try:
+        s.close()
+    except error:
+        pass
+
 def mainloop():
     while 1:
         iwtd = list(serversockets.keys())
-        iwtd, owtd, ewtd = select(iwtd, [], iwtd)
+        iwtd, owtd, ewtd = select(iwtd, [], iwtd, SWEEP_INTERVAL)
         #print iwtd, owtd, ewtd, serversockets
         for s in iwtd:
             if s in serversockets:
                 input, close = serversockets[s]
                 try:
                     input()
-                except:
-                    import traceback
-                    print("-"*60)
-                    traceback.print_exc()
-                    print("-"*60)
+                except Exception as e:
+                    print('dropping a connection: %s: %s' % (
+                        e.__class__.__name__, e), file=sys.stderr)
+                    if s in connexions:      # not the listening sockets
+                        drop(s, close)
+        # connections that never listed a game and say nothing
+        now = time.time()
+        for s, c in list(connexions.items()):
+            if c.serverkey is None and now - c.lastseen > IDLE_TIMEOUT:
+                drop(s, c.disconnect)
         for s in ewtd:
             if s in serversockets:
                 input, close = serversockets[s]
