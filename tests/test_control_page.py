@@ -107,14 +107,22 @@ class OneWindow(unittest.TestCase):
 
     def test_second_click_opens_no_second_window(self):
         import subprocess
-        window = subprocess.Popen([sys.executable, '-c',
-                                   'import time; time.sleep(30)'])
+        # a window that writes 'raised' when asked to come to the front
+        window = subprocess.Popen(
+            [sys.executable, '-c',
+             'import signal, sys, time\n'
+             'signal.signal(signal.SIGUSR1, lambda *a: print("raised", flush=True))\n'
+             'print("ready", flush=True)\n'
+             'time.sleep(30)\n'], stdout=subprocess.PIPE, text=True)
         self.addCleanup(window.wait)
         self.addCleanup(window.kill)
+        self.assertEqual(window.stdout.readline(), 'ready\n')
         httppages.client_pid = window.pid
         f, url = self.join()
         self.assertEqual(self.launched, [])
         self.assertIn('already+open', url)
+        self.assertEqual(window.stdout.readline(), 'raised\n')
+        window.stdout.close()
 
     def test_closed_window_is_collected(self):
         import subprocess

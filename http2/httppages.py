@@ -422,7 +422,9 @@ class PageServer:
         if client_running():
             # one game window is enough, also for several players at this
             # computer: each one clicks on a free dragon in it
-            s = 'The game window is already open.  Close it to join another game.'
+            s = ('The game window is already open (see your taskbar).  '
+                 'Close it to join another game.')
+            raise_client()
         else:
             schedule_launch(args)
             s = 'Connecting to %s.' % address
@@ -714,6 +716,15 @@ def client_running():
         return True
     client_pid = None
     return False
+
+def raise_client():
+    """Ask the game window we started to come to the front."""
+    import signal
+    if client_pid is not None and hasattr(signal, 'SIGUSR1'):
+        try:
+            os.kill(client_pid, signal.SIGUSR1)
+        except OSError:
+            pass
 
 def schedule_launch(args):
     httpserver.actions_when_finished.append(lambda args=args: launch(args))
