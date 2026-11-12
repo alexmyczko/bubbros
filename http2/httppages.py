@@ -277,7 +277,7 @@ class PageServer:
             'on the <a href="index.html">main page</a>.</p></body></html>'
             % text), 'text/html'
 
-    def mainpage(self, headers, juststarted=0, justconnected=0):
+    def mainpage(self, headers, juststarted=0, justconnected=0, note=''):
         running = my_server()
         count = len(gamesrv.clients)
         tim = time.time()
@@ -289,14 +289,15 @@ class PageServer:
         return httpserver.load(os.path.join(LOCALDIR, 'data', 'index.html'),
                                'text/html', locals=locals())
 
-    def indexloader(self, headers, cheat=[], **options):
+    def indexloader(self, headers, cheat=[], note=[], **options):
         if cheat:
             import builtins
             for c in cheat:
                 getattr(builtins, '__cheat')(c)
         else:
             self.localservers = None
-        return self.mainpage(headers, juststarted=('juststarted' in options))
+        return self.mainpage(headers, juststarted=('juststarted' in options),
+                             note=note and note[0] or '')
 
     def controlcenterloader(self, headers, **options):
         host = headers['X-Remote-Host']
@@ -414,7 +415,6 @@ class PageServer:
             address = '%s:%s' % (host, port)
         else:
             address = host
-        nbclients = len(gamesrv.clients)
         script = os.path.join(LOCALDIR, os.pardir, 'display', 'Client.py')
         script = no_quote_worries(script)
         if m:
@@ -429,15 +429,10 @@ class PageServer:
         else:
             schedule_launch(args)
             s = 'Connecting to %s.' % address
-        if m:
-            time.sleep(0.5)
-            return None, self.metaserverpage(headers) + '&head=' + quote_plus(s)
-        #elif my_server_address() == address:
-        #    endtime = time.time() + 3.0
-        #    while gamesrv.recursiveloop(endtime, []):
-        #        if len(gamesrv.clients) > nbclients:
-        #            break
-        return self.mainpage(headers, justconnected=1)
+        # back to this page, where "Stop this program" is, and not to a
+        # page that joins again when reloaded
+        return None, 'index.html?time=%s&note=%s' % (time.time(),
+                                                      quote_plus(s))
 
     def optionsloader(self, headers, reset=[], savetime=[], **options):
         if reset:

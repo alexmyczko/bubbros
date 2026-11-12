@@ -26,6 +26,12 @@ externaltarget = running and ' target="new"' or ''
 <td bgcolor="#000000">&nbsp;</td>
 </tr>
 
+%(
+if note:
+    print('<tr><td bgcolor="#000000">&nbsp;</td>')
+    print('<td bgcolor="#FFFF80"><strong>%s</strong></td>' % htmlquote(note))
+    print('<td bgcolor="#000000">&nbsp;</td></tr>')
+)s
 <tr>
 <td bgcolor="#000000">&nbsp;</td>
 <td bgcolor="#F0E0E0">&nbsp;</td>
