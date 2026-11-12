@@ -381,7 +381,10 @@ class MetaClientCli:
         self.gotudpport = None
         if not (PORTS.get('CLIENT') or PORTS.get('sendudpto')):
             self.s = connect(addr=self.metaserver)
-            _thread.start_new_thread(self.acquire_udp_port, ())
+            if self.s is not None:
+                _thread.start_new_thread(self.acquire_udp_port, ())
+            else:
+                self.ev2.signal()     # no meta-server: no outside UDP port
         else:
             self.s = None
             self.ev2.signal()

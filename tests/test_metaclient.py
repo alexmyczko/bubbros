@@ -88,6 +88,22 @@ class Setting(unittest.TestCase):
         self.assertLess(time.time() - start, 2 * metaclient.CONNECT_TIMEOUT)
 
 
+class NoMetaServer(unittest.TestCase):
+
+    def test_join_gives_up_cleanly(self):
+        # nothing answers: not the meta-server, not the game
+        errors = []
+        old_hook = sys.unraisablehook
+        sys.unraisablehook = errors.append
+        self.addCleanup(setattr, sys, 'unraisablehook', old_hook)
+        metaserver = ('127.0.0.1', free_port(), 1)
+        game = '127.0.0.1:%d' % free_port()
+        c = metaclient.MetaClientCli(game, None, metaserver)
+        self.assertRaises(SystemExit, c.run)    # "failed to connect"
+        time.sleep(0.5)                  # let the helper threads end
+        self.assertEqual([e.exc_value for e in errors], [])
+
+
 class LocalMetaServer(unittest.TestCase):
     """metaserver/metaserver.py in a thread: a game server registers, and
     both the protocol and the web page list it."""
