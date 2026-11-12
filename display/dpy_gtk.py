@@ -203,6 +203,9 @@ class Display:
         self.area.queue_draw()
         self.events_poll()
 
+    def raise_window(self):
+        self.window.present()
+
     def close(self):
         self.window.destroy()
 
