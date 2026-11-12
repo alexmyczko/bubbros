@@ -6,7 +6,7 @@ from select import select
 import struct, zlib
 import time
 from common.msgstruct import *
-from common.pixmap import decodepixmap
+from common.pixmap import decodepixmap, cliprect
 from common import hostchooser, configfile
 import modes
 from modes import KeyPressed, KeyReleased
@@ -20,13 +20,14 @@ UDP_EXPECTED_RATIO = 0.60
 
 
 def loadpixmap(dpy, data, colorkey=None):
-    w, h, data = decodepixmap(data)
+    """The display's pixmap and the image size (w, h)."""
+    w, h, data = decodepixmap(data)     # checks the size
     if colorkey is None:
         colorkey = -1
     elif colorkey < 0:
         r, g, b = struct.unpack("BBB", data[:3])
         colorkey = b | (g<<8) | (r<<16)
-    return dpy.pixmap(w, h, data, colorkey)
+    return dpy.pixmap(w, h, data, colorkey), (w, h)
 
 class Icon:
     alpha = 255
@@ -36,6 +37,8 @@ class Icon:
     def __getattr__(self, attr):
         if attr == 'pixmap':
             self.pixmap = self.playfield.getpixmap(self.bmpcode)
+            self.rect = cliprect(self.rect,
+                                 self.playfield.pixmapsizes[self.bmpcode])
             if hasattr(self.playfield.dpy, 'getopticon'):
                 ico = self.playfield.dpy.getopticon(
                     self.pixmap, self.originalrect, self.alpha)
@@ -146,6 +149,7 @@ class Playfield:
         self.dpy = None
         self.snd = None
         self.pixmaps = {}   # {bmpcode: dpy_pixmap}
+        self.pixmapsizes = {}   # {bmpcode: (w, h)}
         self.bitmaps = {}   # {bmpcode: (fileid_or_data, colorkey)}
         self.icons = {}
         self.sounds = {}
@@ -286,7 +290,7 @@ class Playfield:
 
         if udpdata[0] >= 0x88:
             # reset
-            d = zlib.decompressobj().decompress
+            d = caching.stream_inflater()
             if prevframe != thisframe:  # if not global sync point
                 # sync point from a previous frame
                 # find all threads with the same prevframe
@@ -342,12 +346,13 @@ class Playfield:
         except KeyError:
             data, colorkey = self.bitmaps[bmpcode]
             if isinstance(data, bytes):     # inline data, else a DataChunk
-                data = zlib.decompress(data)
+                data = caching.inflate(data)
             else:
                 if data.pending:
                     raise KeyError
                 data = data.read()
-            pixmap = loadpixmap(self.dpy, data, colorkey)
+            pixmap, self.pixmapsizes[bmpcode] = loadpixmap(self.dpy, data,
+                                                           colorkey)
             self.pixmaps[bmpcode] = pixmap
             return pixmap
 
@@ -528,7 +533,7 @@ class Playfield:
 
     def start_udp_over_tcp(self):
         self.pending_udp_data = b''
-        self.udp_over_tcp_decompress = zlib.decompressobj().decompress
+        self.udp_over_tcp_decompress = caching.stream_inflater()
         self.udpsock_low = None
         for name in ('udpsock', 'udpsock2'):
             sock = getattr(self, name)
@@ -668,6 +673,7 @@ class Playfield:
             for ico in list(self.icons.values()):
                 ico.clear()
             self.pixmaps.clear()
+            self.pixmapsizes.clear()
             self.dpy.close()
             del self.sprites[:]
         self.width = width
@@ -719,7 +725,7 @@ class Playfield:
                 self.sounds[smpcode] = self.snd.sound(f)
             f.clear()
         if isinstance(data, bytes):     # inline data, else a file id
-            data = zlib.decompress(data)
+            data = caching.inflate(data)
             f = DataChunk(None)
             f.store(0, data)
             ready(f)
@@ -728,6 +734,9 @@ class Playfield:
             f.when_ready(ready)
 
     def msg_patch_file(self, fileid, position, data, lendata=None, *rest):
+        if not caching.valid_range(position, len(data)):
+            print('ignoring file data out of range', file=sys.stderr)
+            return
         if fileid in self.fileids:
             f = self.fileids[fileid]
         else:
@@ -735,10 +744,13 @@ class Playfield:
         f.server_patch(position, data, lendata or len(data))
 
     def msg_zpatch_file(self, fileid, position, data, *rest):
-        data1 = zlib.decompress(data)
+        data1 = caching.inflate(data)
         self.msg_patch_file(fileid, position, data1, len(data), *rest)
 
     def msg_md5_file(self, fileid, filename, position, length, checksum, *rest):
+        if not caching.valid_range(position, length):
+            print('ignoring file data out of range', file=sys.stderr)
+            return
         if fileid in self.fileids:
             f = self.fileids[fileid]
         else:
@@ -828,7 +840,10 @@ class Playfield:
 
     def msg_inline_frame(self, data, *rest):
         if self.pending_udp_data is not None:
-            self.pending_udp_data = self.udp_over_tcp_decompress(data)
+            try:
+                self.pending_udp_data = self.udp_over_tcp_decompress(data)
+            except zlib.error:
+                self.pending_udp_data = b''    # a lost frame
     
     MESSAGES = {
         MSG_BROADCAST_PORT:msg_broadcast_port,

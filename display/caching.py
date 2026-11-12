@@ -1,5 +1,5 @@
 
-import os, sys
+import os, zlib, sys
 from hashlib import md5
 #import common.debug
 
@@ -73,6 +73,52 @@ class FileBlock:
             return self.memorydata
 
 
+# What a game server may send.  It names files of its own game data,
+# which the client may already have; it must not be able to make the
+# client look at any other file, since the answer (whether the MD5 of a
+# piece of it matches) lets it guess the contents.
+DATA_DIRS = ('bubbob',)          # game.FnBasePath of the servers
+MAX_FILE_SIZE = 64 * 1024 * 1024 # the largest file of the game is ~11 MB
+MAX_INFLATED = 16 * 1024 * 1024  # one message, decompressed
+
+def data_path(filename):
+    """The components of 'filename' if it is a Unix-style relative path
+    inside DATA_DIRS, else None."""
+    parts = filename.split('/')
+    if parts[0] not in DATA_DIRS:
+        return None
+    for p in parts:
+        if p in ('', '.', '..') or '\\' in p or ':' in p or '\0' in p:
+            return None
+    return parts
+
+def valid_range(position, length):
+    return 0 <= position and 0 <= length and position + length <= MAX_FILE_SIZE
+
+def inflate(data):
+    """zlib.decompress() for data from a server, with a size limit."""
+    d = zlib.decompressobj()
+    result = d.decompress(data, MAX_INFLATED)
+    if d.unconsumed_tail:
+        raise ValueError("compressed data larger than %d bytes" % MAX_INFLATED)
+    return result
+
+
+MAX_FRAME = 1024 * 1024          # one frame of the game, decompressed
+
+def stream_inflater():
+    """Like zlib.decompressobj().decompress, for the frames a server
+    sends as one zlib stream, with a size limit per call.  Too much data
+    raises zlib.error, which the callers handle as a lost frame."""
+    d = zlib.decompressobj()
+    def inflate_frame(data):
+        result = d.decompress(data, MAX_FRAME)
+        if d.unconsumed_tail:
+            raise zlib.error("frame larger than %d bytes" % MAX_FRAME)
+        return result
+    return inflate_frame
+
+
 class Data:
     # characters kept as they are in cache file names; others become '_'
     SafeChars = ".abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -110,13 +156,17 @@ class Data:
     def loadfrom(self, filename, position, length, checksum):
         """Try to load data from the given filename, with the given
         expected MD5 checksum.  The filename must be Unix-style, and is
-        looked up both in the directory SOURCEDIR and with a mangled name
-        in the cache directory CACHEDIR."""
-        directname = os.path.join(self.SOURCEDIR, *filename.split('/'))
+        looked up both in the directory SOURCEDIR (only for game data,
+        see data_path()) and with a mangled name in the cache directory
+        CACHEDIR."""
+        parts = data_path(filename)
+        directname = parts and os.path.join(self.SOURCEDIR, *parts)
         mangledname = ''.join([c if c in Data.SafeChars else '_'
                                for c in filename])
         cachename = os.path.join(self.CACHEDIR, mangledname)
         for name, readonly in ((directname, 1), (cachename, 0)):
+            if not name:
+                continue
             try:
                 f = Data.Cache.access(name, position)
                 data = f.read(length)

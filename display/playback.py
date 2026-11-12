@@ -7,7 +7,9 @@ import io, struct, zlib
 import time
 sys.path.insert(0, os.pardir)
 from common.msgstruct import *
+from common.pixmap import decodepixmap, cliprect
 from common import hostchooser
+import caching
 import modes
 from modes import KeyPressed, KeyReleased
 
@@ -17,25 +19,14 @@ SOURCEDIR = os.pardir
 
 
 def loadpixmap(dpy, data, colorkey=None):
-    f = io.BytesIO(data)
-    sig = f.readline().strip()
-    assert sig == b"P6"
-    while 1:
-        line = f.readline().strip()
-        if not line.startswith(b'#'):
-            break
-    wh = line.split()
-    w, h = list(map(int, wh))
-    sig = f.readline().strip()
-    assert sig == b"255"
-    data = f.read()
-    f.close()
+    """The display's pixmap and the image size (w, h)."""
+    w, h, data = decodepixmap(data)     # checks the size
     if colorkey is None:
         colorkey = -1
     elif colorkey < 0:
         r, g, b = struct.unpack("BBB", data[:3])
         colorkey = b | (g<<8) | (r<<16)
-    return dpy.pixmap(w, h, data, colorkey)
+    return dpy.pixmap(w, h, data, colorkey), (w, h)
 
 class Icon:
     def __init__(self, bitmap, xxx_todo_changeme, alpha):
@@ -86,12 +77,13 @@ class Playback:
         bitmaps = {}
         for bmpcode, (data, colorkey) in list(self.defbitmaps.items()):
             if isinstance(data, bytes):     # inline data, else a file id
-                data = zlib.decompress(data)
+                data = caching.inflate(data)
             else:
                 data = self.deffiles[data]
             bitmaps[bmpcode] = loadpixmap(self.dpy, data, colorkey)
         for icocode, (bmpcode, rect, alpha) in list(self.deficons.items()):
-            self.icons[icocode] = Icon(bitmaps[bmpcode], rect, alpha)
+            pixmap, size = bitmaps[bmpcode]
+            self.icons[icocode] = Icon(pixmap, cliprect(rect, size), alpha)
 
     def go(self, n):
         self.n = n
@@ -153,6 +145,8 @@ class Playback:
         pass
 
     def msg_patch_file(self, fileid, position, data, lendata=None, *rest):
+        if not caching.valid_range(position, len(data)):
+            return
         try:
             s = self.deffiles[fileid]
         except KeyError:
@@ -163,11 +157,16 @@ class Playback:
         self.deffiles[fileid] = s
 
     def msg_zpatch_file(self, fileid, position, data, *rest):
-        data1 = zlib.decompress(data)
+        data1 = caching.inflate(data)
         self.msg_patch_file(fileid, position, data1, len(data), *rest)
 
     def msg_md5_file(self, fileid, filename, position, length, checksum, *rest):
-        fn = os.path.join(SOURCEDIR, filename.decode('utf-8'))
+        # a recording names game data files; nothing else may be read
+        parts = caching.data_path(filename.decode('utf-8'))
+        if parts is None or not caching.valid_range(position, length):
+            print('ignoring file %r' % (filename,), file=sys.stderr)
+            return
+        fn = os.path.join(SOURCEDIR, *parts)
         f = open(fn, 'rb')
         f.seek(position)
         data = f.read(length)
