@@ -153,12 +153,18 @@ class BubBobGame(gamesrv.Game):
         return 1
 
     def FnListBoards():
+        # level sets in levels/ and one folder below it, so that a
+        # separately installed pack can live in a folder of its own
         import boards
         result = []
-        for fn in os.listdir('levels'):
-            base, ext = os.path.splitext(fn)
-            if ext in ('.py', '.bin'):
-                result.append((base, os.path.join('levels', fn)))
+        dirs = ['levels'] + sorted(
+            os.path.join('levels', d) for d in os.listdir('levels')
+            if d != 'CVS' and os.path.isdir(os.path.join('levels', d)))
+        for dir in dirs:
+            for fn in sorted(os.listdir(dir)):
+                base, ext = os.path.splitext(fn)
+                if ext in ('.py', '.bin'):
+                    result.append((base, os.path.join(dir, fn)))
         return result
     FnListBoards = staticmethod(FnListBoards)
 
