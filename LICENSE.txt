@@ -5,7 +5,9 @@ The source code is copyrighted by Armin Rigo <arigo@tunes.org>, and
 distributed under the MIT License, a copy of which is included below.
 
 In the current version most graphics have been made by David
-Gowers, based on graphics from McSebi.
+Gowers, based on graphics from McSebi.  In 2026 he released them
+under the Artistic License 2.0 (artistic.txt); his mail is in
+RELICENSING-PERMISSIONS.md.
 
 Almost all sounds, background musics and levels are directly
 taken from the MacOS version of Bub & Bob 1 by McSebi.  Thanks
@@ -19,6 +21,10 @@ it!  He released them under the following terms:
       Sebastian Wegner <sebi@mcsebi.com>
       Copyright (C) 2005 Sebastian Wegner
    """
+
+The level files Arena.bin, HouseOfFun.bin and LostLevels.bin were
+made by fans of the Mac game, not by McSebi, and have no licence
+from their authors yet; see RELICENSING-PERMISSIONS.md.
 
 
 MIT License
