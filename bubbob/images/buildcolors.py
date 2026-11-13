@@ -259,7 +259,7 @@ def updatecheck ():
         else:
             list1 = [mtime(name) for name in list1]
             list1 = [t for t in list1 if t is not None]
-            return list1 and list2 and max (list1) < min (list2)
+            return list1 and list2 and max (list1) <= min (list2)
 
     rebuild = {}
     for filename in inputfiles ():
