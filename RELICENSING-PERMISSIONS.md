@@ -8,8 +8,18 @@ LICENSE.txt.
 | Author | Files | Licence | Status |
 |---|---|---|---|
 | David Gowers | the graphics he redrew in 2007 | Artistic-2.0 | granted 2026-11-12, below |
-| Sebastian Wegner (McSebi) | Bub & Bob 1 graphics, sounds, music, levels | Artistic (2005, LICENSE.txt) | confirmation asked 2026-11-12 |
+| Sebastian Wegner (McSebi) | Bub & Bob 1 graphics, sounds, music | Artistic (2005, LICENSE.txt) | confirmation asked 2026-11-12 |
+| Sebastian Wegner (McSebi) | bubbob/levels/Levels.bin | not named in the 2005 grant | asked 2026-11-12 |
+| Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun") | none recorded | no address; asked McSebi to forward |
+| Wim De Gent | bubbob/levels/Arena.bin ("Bub & Bob Arena") | none recorded | no address; asked McSebi to forward |
+| Patrick Viney | bubbob/levels/LostLevels.bin ("Lost Levels") | none recorded | no address; asked McSebi to forward |
 | Armin Rigo | origin of the ext1 to ext7 sounds, Python levels | | asked 2026-11-12 |
+
+The three level packs were made by fans of the Mac game and published on
+McSebi's site around 2002, credited to their authors
+(https://web.archive.org/web/20020808194157/http://www.mcsebi.de:80/bb1.php).
+They came with no licence, and McSebi's 2005 grant covers only "the
+graphics and sound data" of his own game.
 
 ---
 
