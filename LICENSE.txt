@@ -26,6 +26,11 @@ The level files Arena.bin, HouseOfFun.bin and LostLevels.bin were
 made by fans of the Mac game, not by McSebi, and have no licence
 from their authors yet; see RELICENSING-PERMISSIONS.md.
 
+The sounds and musics of the subgames (ext1 to ext7) are not from
+McSebi's game and have no known author or licence; some are music
+from commercial games.  They are kept apart in nonfree/, see
+nonfree/README.md.
+
 
 MIT License
 ===========

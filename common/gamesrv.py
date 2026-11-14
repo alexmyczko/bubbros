@@ -142,9 +142,10 @@ class MemoryBitmap(Bitmap):
 
 class Sample(DataChunk):
 
-  def __init__(self, code, filename, freqfactor=1):
+  def __init__(self, code, filename, freqfactor=1, path=None):
     self.code = code
-    self.filename = filename
+    self.filename = filename       # the name clients know the file by
+    self.path = path or filename   # where the server reads it
     self.freqfactor = freqfactor
     DataChunk.__init__(self)
 
@@ -156,7 +157,7 @@ class Sample(DataChunk):
     return message(MSG_DEF_SAMPLE, self.code, data)
 
   def read(self, slice=None):
-    f = open(self.filename, "rb")
+    f = open(self.path, "rb")
     data = f.read()
     f.close()
     if self.freqfactor != 1:
@@ -205,10 +206,10 @@ class Sample(DataChunk):
 
 class Music(DataChunk):
 
-  def __init__(self, filename, filerate=44100):
+  def __init__(self, filename, filerate=44100, path=None):
     self.filename = filename
     self.filerate = filerate
-    self.f = open(filename, 'rb')
+    self.f = open(path or filename, 'rb')
     self.f.seek(0, 2)
     filesize = self.f.tell()
     self.endpos = max(self.filerate, filesize - self.filerate)
@@ -894,6 +895,9 @@ def finalsegment(music1, music2):
   return loop1 == loop2 and intro1 == intro2[len(intro2)-len(intro1):]
 
 def set_musics(musics_intro, musics_loop, reset=1):
+  # a missing music file gives None (see getmusic()): play the others
+  musics_intro = [m for m in musics_intro if m is not None]
+  musics_loop = [m for m in musics_loop if m is not None]
   mlist = []
   loop_from = len(musics_intro)
   mlist.append(loop_from)
@@ -921,19 +925,45 @@ def getbitmap(filename, colorkey=None):
     bitmaps[filename] = bmp
     return bmp
 
+NONFREE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
+  __file__))), 'nonfree')
+
+def soundpath(filename):
+  """Where to read a sound: its own path, else the same path under
+  nonfree/ (sounds of unknown licence, see nonfree/README.md), else None."""
+  if os.path.exists(filename):
+    return filename
+  rel = os.path.relpath(os.path.abspath(filename), os.path.dirname(NONFREE))
+  path = os.path.join(NONFREE, rel)
+  if not rel.startswith(os.pardir) and os.path.exists(path):
+    return path
+  return None
+
+class NoSample:
+  """A sound whose file is missing: playing it does nothing."""
+  def play(self, *args, **kwds):
+    pass
+
 def getsample(filename, freqfactor=1):
   try:
     return samples[filename, freqfactor]
   except:
-    snd = Sample(len(samples), filename, freqfactor)
+    path = soundpath(filename)
+    if path is None:
+      return NoSample()
+    snd = Sample(len(samples), filename, freqfactor, path)
     samples[filename, freqfactor] = snd
     return snd
 
 def getmusic(filename, filerate=44100):
+  """A Music, or None if the file is missing (set_musics() skips None)."""
   try:
     return samples[filename]
   except:
-    mus = Music(filename, filerate)
+    path = soundpath(filename)
+    if path is None:
+      return None
+    mus = Music(filename, filerate, path)
     samples[filename] = mus
     music_by_id[mus.fileid] = mus
     return mus
