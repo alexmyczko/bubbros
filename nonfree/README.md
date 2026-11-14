@@ -2,18 +2,19 @@
 
 This folder holds the 14 sounds of the subgames (bubbob/ext1 to ext7),
 under the same paths they had in bubbob/.  They are kept, not deleted,
-but they have no known author and no licence, and some are music from
-commercial games.  The game plays them from here, as before.  A
+but none has a free licence: four musics are extracts of OverClocked
+ReMix remixes of game music, and the other files have no known author.  The game plays them from here, as before.  A
 distribution can leave this folder out, and the game then plays those
 subgames without sound (common/gamesrv.py, soundpath()); putting the
 folder back, for example from a separate package, brings the sounds back.
 
 | File | What it is |
 |---|---|
-| ext1/music.wav | Taito's Arkanoid intro theme, same arrangement as NES Arkanoid |
-| ext2/music.wav | the Pac-Man start jingle (Namco 1980) over a funk loop |
-| ext4/music.wav | the Game Boy Tetris A-Type music (Nintendo 1989), recorded from the game |
-| ext3, ext5, ext6, ext7 music.wav | not identified |
+| ext1/music.wav | "Black Block" by DJComet, OverClocked ReMix (https://ocremix.org/remix/OCR00958), Arkanoid |
+| ext2/music.wav | "64-bit" by Peterrian Productions, OverClocked ReMix (https://ocremix.org/remix/OCR00021), Pac-Man |
+| ext4/music.wav | "MkVaffQuasi Ultimix" by MkVaff, OverClocked ReMix (https://ocremix.org/remix/OCR00155), Tetris |
+| ext5/music.wav | "DABOMB" by alk, OverClocked ReMix (https://ocremix.org/remix/OCR00105), Lemmings |
+| ext3, ext6, ext7 music.wav | not identified, probably also OverClocked ReMix extracts |
 | ext5/ouch.wav, ext6/crash.wav | not identified |
 | ext1/brick.wav, ext1/wall.wav, ext3/shoot.wav, ext7/fire.wav, ext7/hit.wav | generated tones and noise, author unknown |
 
@@ -42,8 +43,10 @@ folder back, for example from a separate package, brings the sounds back.
   about LICENSE.txt, and nobody checked the subgame sounds.  The first
   Debian ITP, https://bugs.debian.org/308148, mentioned "some legal
   problems which need to be figured out first", without detail.
-- Asked in November 2026, Armin wrote: "I have absolutely no idea any more
-  where the music came from." (RELICENSING-PERMISSIONS.md)
+- Asked in November 2026, Armin first wrote: "I have absolutely no idea any
+  more where the music came from." (RELICENSING-PERMISSIONS.md)  Reading
+  a draft about the game, he remembered (mail of 14 November 2026): "I'm
+  pretty sure they are all extracts of music from OCRemix.org."
 
 ## What was checked (November 2026)
 
@@ -63,23 +66,32 @@ Nothing names a source for these files in:
   2005): https://web.archive.org/web/2007/http://tismerysoft.de/pypy/irc-logs/pypy/
 - the Debian bugs: https://bugs.debian.org/cgi-bin/pkgreport.cgi?src=bubbros;archive=both
 
-The music was compared by sound against about 3000 game soundtracks and
-modules from https://modarchive.org , https://www.zophar.net/music ,
-https://ftp.modland.com and free games in Debian:
+The music was first compared by sound against about 3000 game soundtracks
+and modules (https://modarchive.org , https://www.zophar.net/music ,
+https://ftp.modland.com , free games in Debian).  That found the tunes
+(Arkanoid, the Pac-Man jingle, Tetris) but not the recordings.  After
+Armin's second mail, 270 OverClocked ReMix tracks posted before each
+commit were compared, and four loops are exact excerpts of one of them
+(waveform correlation 0.96 to 0.99 over the whole loop):
 
-- ext4/music.wav is the Game Boy Tetris A-Type track, note for note, at
-  the same tempo and tuning: track 1 of DMG-TRA-1.gbs in
-  https://fi.zophar.net/soundfiles/gameboy-gbs/tetris/Tetris%20%28EMU%29.zophar.zip
-- ext1/music.wav has the notes, rhythm and drums of NES Arkanoid's intro,
-  one semitone lower:
-  https://fi.zophar.net/soundfiles/nintendo-nes-nsf/arkanoid/4%20-%20Track%204.mp3
-- ext2/music.wav: its melody is the Pac-Man start jingle (Namco 1980),
-  found by writing down its notes; the backing is not from Pac-Man.
+- ext1: OCR00958 from 0:00, played one semitone lower.
+- ext2: OCR00021 from 0:08.
+- ext4: OCR00155 from 0:01.6.  Its opening imitates the Game Boy, which
+  is why it first looked like a recording of the game.
+- ext5: OCR00105 from 0:00.
+
+OverClocked ReMix allows redistribution only without profit, unmodified,
+with credit, and may withdraw that permission
+(https://ocremix.org/info/Content_Policy); the game tunes underneath
+belong to their own copyright holders.  So these files are not free
+software even with the credit above.
 
 ## Replacing them
 
 The game loads each file by name, so a free sound with the same name in
 bubbob/extN/ replaces the one here.  Candidates: new recordings or
 compositions under a free licence, CC0 or CC-BY sounds (opengameart.org,
-freesound.org), or sounds from free games already in Debian.  Record the
+freesound.org), or sounds from free games already in Debian.  Searching
+the full OverClocked ReMix archive (their torrents, https://bt.ocremix.org)
+should identify ext3, ext6 and ext7 too.  Record the
 author and licence of each in RELICENSING-PERMISSIONS.md.
