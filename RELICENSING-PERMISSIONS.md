@@ -13,13 +13,140 @@ LICENSE.txt.
 | Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun") | none recorded | no address; asked McSebi to forward |
 | Wim De Gent | bubbob/levels/Arena.bin ("Bub & Bob Arena") | none recorded | no address; asked McSebi to forward |
 | Patrick Viney | bubbob/levels/LostLevels.bin ("Lost Levels") | none recorded | no address; asked McSebi to forward |
-| Armin Rigo | origin of the ext1 to ext7 sounds, Python levels | | asked 2026-11-12 |
+| Armin Rigo, Gio, Michel-Stéphane | the Python levels (bubbob/levels/*.py) | MIT, like the code | confirmed 2026-11-14, below |
+| unknown | the ext1 to ext7 sounds and music | none known | Armin has no record of their origin, below |
 
 The three level packs were made by fans of the Mac game and published on
 McSebi's site around 2002, credited to their authors
 (https://web.archive.org/web/20020808194157/http://www.mcsebi.de:80/bb1.php).
 They came with no licence, and McSebi's 2005 grant covers only "the
 graphics and sound data" of his own game.
+
+---
+
+## Armin Rigo (2026-11-14)
+
+**Key quotes:** *"Yes, the MIT licence applies to those levels too.  These two
+are old friends of mine, credited because we made some of the levels
+together."* and, about the ext1 to ext7 sounds, *"I have absolutely no
+idea any more where the music came from."*
+
+The message, as text.  The headers follow, without the X-Gm, X-Google and X-Pm
+lines; the body arrived as plain text.  The mailbox (Proton)
+stores the body encrypted with the recipient's key; it is shown here
+decrypted.
+
+```
+From: Armin Rigo <armin.rigo@gmail.com>
+Date: Sat, 14 Nov 2026 09:40:57 +0100
+Subject: Re: The Bub's Brothers back in Debian GNU/Linux: copyright questions
+To: Juan Manuel Méndez Rey <juan.mendezr@proton.me>
+
+Hi Juan!
+
+On Thu, 12 Nov 2026 at 22:39, Juan Manuel Méndez Rey
+<juan.mendezr@proton.me> wrote:
+> 1. The subgame sounds in bubbob/ext1 to ext7 (music.wav and brick, wall,
+>    shoot, ouch, crash, fire, hit.wav). They are not from McSebi's
+>    Bub & Bob. Where did they come from? The ext7 music was committed as
+>    "Red Baron music".
+
+I don't have any information any more; all I have is what is in the
+CVS repo.  I have absolutely no idea any more where the music came
+from.
+
+> 2. Did David Gowers give a licence for his 2007 graphics?
+
+As far as I know, yes.  Again, though, no idea about any detail and I
+don't have my old e-mails any more.
+
+> 3. Who are "Gio" and "Michel-Stéphane", credited for the Python levels,
+>    and are those levels under the MIT licence of the code?
+
+Yes, the MIT licence applies to those levels too.  These two are old
+friends of mine, credited because we made some of the levels together.
+
+> 4. Do you still have McSebi's 2005 permission mail? Alex lost his copy.
+
+No, sorry.
+
+Great to see that someone is trying to make that old project survive!
+Sorry I can't help with that at all.
+
+A bientôt,
+Armin
+```
+
+<details>
+<summary>Headers, as received (gmail.com DKIM signature, checked by Proton: dkim=pass)</summary>
+
+```
+Return-Path: <armin.rigo@gmail.com>
+X-Original-To: juan.mendezr@proton.me
+Delivered-To: juan.mendezr@proton.me
+Received: from mail-lf1-f50.google.com (mail-lf1-f50.google.com [209.85.167.50]) (using
+ TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)
+  key-exchange x25519 server-signature RSA-PSS (4096 bits) server-digest SHA512) (No
+ client certificate requested) by mailinzur1016.protonmail.ch (Postfix) with ESMTPS id
+ 4jRSKC6Ysjz9vNPg for <juan.mendezr@proton.me>; Sat, 14 Nov 2026 08:41:35 +0000 (UTC)
+Received: by mail-lf1-f50.google.com with SMTP id 2adb3069b0e04-5be3d5927ceso2641561e87.3
+        for <juan.mendezr@proton.me>; Sat, 14 Nov 2026 00:41:35 -0800 (PST)
+Authentication-Results: mail.protonmail.ch; dmarc=pass (p=none dis=none)
+ header.from=gmail.com
+Authentication-Results: mail.protonmail.ch; spf=pass smtp.mailfrom=gmail.com
+Authentication-Results: mail.protonmail.ch; arc=pass smtp.remote-ip=209.85.167.50
+ arc.chain=:google.com
+Authentication-Results: mail.protonmail.ch; dkim=pass (2048-bit key) header.d=gmail.com
+ header.i=@gmail.com header.b="WhJKq1VN"
+Arc-Seal: i=1; a=rsa-sha256; t=1794645695; cv=none;
+        d=google.com; s=arc-20260327;
+        b=KjTAE/nxdff4rrGknVrRJU7+Uz6w5MigxXJqSnCDvUvNDuo/B+RUZXJEPThkGhS5Xl
+         WZoJMJaSCvXdTUoQWUQGPjPVI808dLdEsSsp5bc3ZLisDBtKulHzV+pVDFIkJpmRoiB4
+         WMD+Mug88UWZ36kUVLGi5paMg3cvPT7jX7MaWeTCYmSYtjA8htQkhRt1Ox+rZI5VR5Wp
+         PS348QgtIhHJPfylArcOR+wK1TpmAafVsi0mqlyoT4LtYHrWsNPb0Z5B9yaGV7f3wkMJ
+         IhofbXVzQORwglaDK7GWylkzutNvSXSpWaFY9PXhY95jCT5G1ucuhxuPeZmTnQxkLb+G
+         u96g==
+Arc-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=content-transfer-encoding:to:subject:message-id:date:from
+         :in-reply-to:references:mime-version:dkim-signature;
+        bh=Cp+J3XIsxhPe1wZcoSl+2gdtOUiGRBd5AZURNYZU/Dk=;
+        fh=j+3xUHmlI9Tlm8/3ZAnlP0VWiJoHLRDPzoHQtm6Tnfg=;
+        b=lqvpHgMSFhZCj5JsYH25RST6Tg95n2UVQHtllDcrlwI1RLMJ3GQANy/fO1b+g7Nm9c
+         YZQY1it6B/oYW7fjQnjFQLYDHx5/CczBjm13TLeCTYty4QCsqyMtZoFnwHhdZSbIJ7bc
+         wB7R6DjUnwxDOdO6dyGPV/dlPsgfbcSkqoNgeJz+74pVgeOJa1sHMabj4KdMbg0smTtT
+         VjXjBItOsrflQ6gziFPAeSpiGUqEa8M8lSCAKb8nwzV/eWgAwfMit0ak6kxVnQ5TgFOV
+         AiX3LLqmAGE/Onn6khLlBtVfppQeuYnkW9qj7JNEKD2UIMe24tB80HJH07gh2V3zgoU1
+         4elQ==;
+        darn=proton.me
+Arc-Authentication-Results: i=1; mx.google.com; arc=none
+Dkim-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=gmail.com; s=20260707; t=1794645695; x=1795250495; darn=proton.me;
+        h=content-transfer-encoding:content-type:to:subject:message-id:date
+         :from:in-reply-to:references:mime-version:from:to:cc:subject:date
+         :message-id:reply-to:content-type;
+        bh=Cp+J3XIsxhPe1wZcoSl+2gdtOUiGRBd5AZURNYZU/Dk=;
+        b=WhJKq1VNeP+19DVilJZsdJHycF+wrmkGDTGiURFIQHs2pPhbaLfUDp2Z0FTTjVI99e
+         5OtyWVf/F4HlwX3J5lAuAm9v21zsVVOzeE6q2PbxrLDhJnYCohKVu6xEYhpPWsVgsCXt
+         kRodv3OOOMEpmZ9njnE0F19OEDhM2Ln6/OO6DEJspll2nWltDNdEG6mEteRYKpUEmx3s
+         VYJzu/Avpb/KDMkp2rxKq2JyGx1QOpua1FGVyt3LFCGGCMLBWLMNeut4edKKYYVOgKeC
+         B8W/M/5hO2dgECKT4uXBxdenVgjga2/q+XrQlxfn0pmTJhDVJLmXiOLcWykEqw3cQb0Z
+         JGrw==
+X-Received: by 2002:a05:6512:39d1:b0:5c1:5938:cbfd with SMTP id
+ 2adb3069b0e04-5c1709cf732mr2201420e87.56.1794645694859; Sat, 14 Nov 2026 00:41:34 -0800
+ (PST)
+Mime-Version: 1.0
+References: <179451954297.269879.14590701938508704169@proton.me>
+In-Reply-To: <179451954297.269879.14590701938508704169@proton.me>
+From: Armin Rigo <armin.rigo@gmail.com>
+Date: Sat, 14 Nov 2026 09:40:57 +0100
+Message-Id: <CAMSv6X1-7rqN4UFkAgsALBvKKQijmCzvShX9x3KF5iQUJsef5A@mail.gmail.com>
+Subject: Re: The Bub's Brothers back in Debian GNU/Linux: copyright questions
+To: =?utf-8?Q?Juan_Manuel_M=C3=A9ndez_Rey?= <juan.mendezr@proton.me>
+Content-Type: text/plain
+Content-Transfer-Encoding: quoted-printable
+```
+
+</details>
 
 ---
 
