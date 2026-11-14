@@ -1,4 +1,4 @@
-# bubbros
+# Bub n Bros
 Adopt from sf.net Bub n Bros for port to Python3
 
 Original: http://bub-n-bros.sourceforge.net
