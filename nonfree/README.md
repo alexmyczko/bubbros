@@ -2,8 +2,9 @@
 
 This folder holds the 14 sounds of the subgames (bubbob/ext1 to ext7),
 under the same paths they had in bubbob/.  They are kept, not deleted,
-but none has a free licence: four musics are extracts of OverClocked
-ReMix remixes of game music, and the other files have no known author.  The game plays them from here, as before.  A
+but none has a free licence: five musics are extracts of OverClocked
+ReMix remixes of game music, and the other files have no known author.
+The game plays them from here, as before.  A
 distribution can leave this folder out, and the game then plays those
 subgames without sound (common/gamesrv.py, soundpath()); putting the
 folder back, for example from a separate package, brings the sounds back.
@@ -14,7 +15,8 @@ folder back, for example from a separate package, brings the sounds back.
 | ext2/music.wav | "64-bit" by Peterrian Productions, OverClocked ReMix (https://ocremix.org/remix/OCR00021), Pac-Man |
 | ext4/music.wav | "MkVaffQuasi Ultimix" by MkVaff, OverClocked ReMix (https://ocremix.org/remix/OCR00155), Tetris |
 | ext5/music.wav | "DABOMB" by alk, OverClocked ReMix (https://ocremix.org/remix/OCR00105), Lemmings |
-| ext3, ext6, ext7 music.wav | not identified; not in any OverClocked ReMix still published from before June 2005 |
+| ext3/music.wav | "Galagzee" by zee-roh, OverClocked ReMix OCR00086 (withdrawn; 2003 page: https://web.archive.org/web/20031023174756/http://www.ocremix.org:80/detailmix.php?mixid=OCR00086), Galaga |
+| ext6, ext7 music.wav | not identified; not in any OverClocked ReMix from before June 2005, published or withdrawn |
 | ext5/ouch.wav, ext6/crash.wav | not identified |
 | ext1/brick.wav, ext1/wall.wav, ext3/shoot.wav, ext7/fire.wav, ext7/hit.wav | generated tones and noise, author unknown |
 
@@ -71,7 +73,7 @@ and modules (https://modarchive.org , https://www.zophar.net/music ,
 https://ftp.modland.com , free games in Debian).  That found the tunes
 (Arkanoid, the Pac-Man jingle, Tetris) but not the recordings.  After
 Armin's second mail, 270 OverClocked ReMix tracks posted before each
-commit were compared, and four loops are exact excerpts of one of them
+commit were compared, and five loops are exact excerpts of one of them
 (waveform correlation 0.96 to 0.99 over the whole loop):
 
 - ext1: OCR00958 from 0:00, played one semitone lower.
@@ -79,6 +81,14 @@ commit were compared, and four loops are exact excerpts of one of them
 - ext4: OCR00155 from 0:01.6.  Its opening imitates the Game Boy, which
   is why it first looked like a recording of the game.
 - ext5: OCR00105 from 0:00.
+- ext3: OCR00086 from 0:06.4, as is (both channels mixed to mono).
+  OverClocked ReMix withdrew this remix later; it was still listed in
+  October 2003, after ext3 was committed (June 2003).  The audio
+  compared is the archived "OC ReMoved" copy,
+  https://web.archive.org/web/20130831210310/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3
+  (sha256 755dc6e4ff35ce1bc9abef5d23ec5cb0db25df0d3d1a25c20d02f364279a7c9b),
+  listed by MusicBrainz: https://musicbrainz.org/recording/062669b7-5e22-40ba-bf2d-90cdb218f2ec
+  (waveform correlation 0.98; 0.01 at another point of the same file).
 
 OverClocked ReMix allows redistribution only without profit, unmodified,
 with credit, and may withdraw that permission
@@ -91,12 +101,26 @@ software even with the credit above.
 The game loads each file by name, so a free sound with the same name in
 bubbob/extN/ replaces the one here.  Candidates: new recordings or
 compositions under a free licence, CC0 or CC-BY sounds (opengameart.org,
-freesound.org), or sounds from free games already in Debian.  Searching
-every OverClocked ReMix posted before June 2005 that is still published
-(1228 tracks from the collection torrent "OC ReMix Collection 1 to 4000",
-https://bt.ocremix.org/torrents/OC_ReMix_Collection_-_1_to_4000_%5Bv20201028%5D.torrent)
-found no source for ext3, ext6 and ext7, at playback rates from 0.8 to
-1.2, half and double; the same search finds ext1 and ext5 again.  They
-may come from a remix OverClocked ReMix has since withdrawn, or from
-elsewhere.  Record the
+freesound.org), or sounds from free games already in Debian.  No source was found for ext6 and ext7.  The code names those
+subgames Tron and Camel (Sopwith Camel; ext7's log says "Red Baron
+music"), so their sources are probably remixes of a Tron game and of a
+biplane game.  Searched with no match:
+
+- every OverClocked ReMix posted before June 2005 that is still
+  published (1228 tracks of the collection torrent "OC ReMix Collection 1
+  to 4000",
+  https://bt.ocremix.org/torrents/OC_ReMix_Collection_-_1_to_4000_%5Bv20201028%5D.torrent);
+- the 125 withdrawn remixes numbered up to OCR01364, named from archived
+  OverClocked ReMix pages and the MusicBrainz "OC ReMoved" series
+  (https://musicbrainz.org/series/29eb0b44-aa4c-4ca8-9ea9-da482ce53f00);
+  the audio of all that are archived (172 "OC ReMoved" files and 8
+  copies on old mirrors);
+- 107 old versions at https://archive.org/details/oldocremix ;
+- 269 songs of VGMix (https://vgmixarchive.com/), only part of it.
+
+Each was searched at playback rates 0.25 to 4, tempo changes 0.5 to 2,
+pitch shifts of up to two octaves, reversed, and on the left, right and
+difference channels; the same search finds ext1, ext3 and ext5 again.
+Not searched: the rest of VGMix, and Tron soundtracks (Wendy Carlos,
+1982; Tron 2.0, 2003).  Record the
 author and licence of each in RELICENSING-PERMISSIONS.md.

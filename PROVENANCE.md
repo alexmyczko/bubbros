@@ -25,6 +25,10 @@ and artistic.txt.  Research done in November 2026.
 | Old Debian packages (2008 to 2019) | https://snapshot.debian.org/package/bubbros/ |
 | Debian bugs | https://bugs.debian.org/cgi-bin/pkgreport.cgi?src=bubbros;archive=both |
 | OverClocked ReMix terms | https://ocremix.org/info/Content_Policy |
+| OverClocked ReMix pages as of 2003 (withdrawn remixes) | https://web.archive.org/web/20031023174756/http://www.ocremix.org:80/detailmix.php?mixid=OCR00086 and the other detailmix.php pages |
+| Withdrawn OverClocked ReMix remixes ("OC ReMoved") | https://musicbrainz.org/series/29eb0b44-aa4c-4ca8-9ea9-da482ce53f00 |
+| Old OverClocked ReMix versions | https://archive.org/details/oldocremix |
+| VGMix archive | https://vgmixarchive.com/ |
 
 This GitHub repository starts with "import from sf.net" (2021); the CVS
 history before that is only in the SourceForge snapshot above.
@@ -85,9 +89,10 @@ Kept apart in nonfree/; see nonfree/README.md for the files one by one,
 what was claimed about them before, and the OverClocked ReMix sources
 found.  In short: Armin Rigo added them in 2003 to 2005 without naming a
 source; in 2026 he remembered that the musics are extracts of
-OverClocked ReMix remixes, and four were matched to exact excerpts
-(ext1, ext2, ext4, ext5).  ext3, ext6 and ext7 are in none of the 1228
-OverClocked ReMix tracks from before June 2005 that are still published.
+OverClocked ReMix remixes, and five were matched to exact excerpts
+(ext1, ext2, ext3, ext4, ext5; ext3's remix was withdrawn later and was
+found in an archived copy).  ext6 and ext7 are in no OverClocked ReMix
+from before June 2005, published or withdrawn.
 
 ## How the comparisons were made
 
@@ -106,3 +111,8 @@ OverClocked ReMix tracks from before June 2005 that are still published.
   named in https://ocremix.org/remix/OCR00001 and following pages).
   The search was checked by finding the known matches again in the
   torrent copies (0.975 and 0.880).
+- Wider search for ext6 and ext7: landmark fingerprints on the mono,
+  left, right and difference channels, at playback rates 0.25 to 4,
+  tempo 0.5 to 2, pitch up to two octaves either way, and reversed,
+  over the withdrawn remixes and old versions as well (see
+  nonfree/README.md).  It finds ext1, ext3 and ext5 again.
