@@ -14,7 +14,7 @@ folder back, for example from a separate package, brings the sounds back.
 | ext2/music.wav | "64-bit" by Peterrian Productions, OverClocked ReMix (https://ocremix.org/remix/OCR00021), Pac-Man |
 | ext4/music.wav | "MkVaffQuasi Ultimix" by MkVaff, OverClocked ReMix (https://ocremix.org/remix/OCR00155), Tetris |
 | ext5/music.wav | "DABOMB" by alk, OverClocked ReMix (https://ocremix.org/remix/OCR00105), Lemmings |
-| ext3, ext6, ext7 music.wav | not identified, probably also OverClocked ReMix extracts |
+| ext3, ext6, ext7 music.wav | not identified; not in any OverClocked ReMix still published from before June 2005 |
 | ext5/ouch.wav, ext6/crash.wav | not identified |
 | ext1/brick.wav, ext1/wall.wav, ext3/shoot.wav, ext7/fire.wav, ext7/hit.wav | generated tones and noise, author unknown |
 
@@ -22,8 +22,8 @@ folder back, for example from a separate package, brings the sounds back.
 
 - Armin Rigo added all 14 files to CVS between June 2003 and June 2005.
   The logs name no source; ext7's says only "Red Baron music."
-  (CVS repository: https://sourceforge.net/code-snapshots/cvs/b/bu/bub-n-bros.zip,
-  also in this repository's history.)
+  (CVS repository: https://sourceforge.net/code-snapshots/cvs/b/bu/bub-n-bros.zip;
+  this GitHub repository starts in 2021 and does not have that history.)
 - The site said "Almost all sprite images, sounds, background musics and
   levels are directly taken from the MacOS version of Bub & Bob 1 by
   McSebi".  That text is from May 2003, before the first of these files:
@@ -92,6 +92,11 @@ The game loads each file by name, so a free sound with the same name in
 bubbob/extN/ replaces the one here.  Candidates: new recordings or
 compositions under a free licence, CC0 or CC-BY sounds (opengameart.org,
 freesound.org), or sounds from free games already in Debian.  Searching
-the full OverClocked ReMix archive (their torrents, https://bt.ocremix.org)
-should identify ext3, ext6 and ext7 too.  Record the
+every OverClocked ReMix posted before June 2005 that is still published
+(1228 tracks from the collection torrent "OC ReMix Collection 1 to 4000",
+https://bt.ocremix.org/torrents/OC_ReMix_Collection_-_1_to_4000_%5Bv20201028%5D.torrent)
+found no source for ext3, ext6 and ext7, at playback rates from 0.8 to
+1.2, half and double; the same search finds ext1 and ext5 again.  They
+may come from a remix OverClocked ReMix has since withdrawn, or from
+elsewhere.  Record the
 author and licence of each in RELICENSING-PERMISSIONS.md.
