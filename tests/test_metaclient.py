@@ -51,7 +51,15 @@ class Setting(unittest.TestCase):
         with open(self.cfg, 'w') as f:
             f.write(repr({HOSTNAME: {'metaserver': value}}))
 
-    def test_none_by_default(self):
+    def test_public_list_by_default(self):
+        self.assertEqual(metaclient.address(), ('bubble.aiei.ch', 8055, 8050))
+
+    def test_default_without_config_file(self):
+        configfile.path = lambda sourcedir: self.cfg + '.missing'
+        self.assertEqual(metaclient.address(), ('bubble.aiei.ch', 8055, 8050))
+
+    def test_empty_environment_means_none(self):
+        os.environ[metaclient.ENVIRON_VAR] = ''
         self.assertIsNone(metaclient.address())
 
     def test_forms(self):
@@ -166,6 +174,7 @@ class Page(unittest.TestCase):
             os.environ[metaclient.ENVIRON_VAR] = self.saved_env
 
     def test_no_link_when_none_is_set(self):
+        os.environ[metaclient.ENVIRON_VAR] = ''
         box = self.PageServer.metaserverbox(None)
         self.assertIn('No Internet server list is set', box)
         self.assertNotIn('http://', box)
