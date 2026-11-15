@@ -111,6 +111,9 @@ from before June 2005, published or withdrawn.
   named in https://ocremix.org/remix/OCR00001 and following pages).
   The search was checked by finding the known matches again in the
   torrent copies (0.975 and 0.880).
+- The five matches can be checked again with nonfree/verify_sources.py,
+  which downloads each remix from its public URL, checks its sha256 and
+  prints the correlation of every second of the loop, with a control.
 - Wider search for ext6 and ext7: landmark fingerprints on the mono,
   left, right and difference channels, at playback rates 0.25 to 4,
   tempo 0.5 to 2, pitch up to two octaves either way, and reversed,

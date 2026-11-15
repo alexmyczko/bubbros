@@ -73,22 +73,42 @@ and modules (https://modarchive.org , https://www.zophar.net/music ,
 https://ftp.modland.com , free games in Debian).  That found the tunes
 (Arkanoid, the Pac-Man jingle, Tetris) but not the recordings.  After
 Armin's second mail, 270 OverClocked ReMix tracks posted before each
-commit were compared, and five loops are exact excerpts of one of them
-(waveform correlation 0.96 to 0.99 over the whole loop):
+commit were compared, and five loops are exact excerpts of one of them.
+Times are in the remix as published:
 
-- ext1: OCR00958 from 0:00, played one semitone lower.
-- ext2: OCR00021 from 0:08.
-- ext4: OCR00155 from 0:01.6.  Its opening imitates the Game Boy, which
-  is why it first looked like a recording of the game.
-- ext5: OCR00105 from 0:00.
-- ext3: OCR00086 from 0:06.4, as is (both channels mixed to mono).
-  OverClocked ReMix withdrew this remix later; it was still listed in
-  October 2003, after ext3 was committed (June 2003).  The audio
-  compared is the archived "OC ReMoved" copy,
-  https://web.archive.org/web/20130831210310/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3
-  (sha256 755dc6e4ff35ce1bc9abef5d23ec5cb0db25df0d3d1a25c20d02f364279a7c9b),
-  listed by MusicBrainz: https://musicbrainz.org/recording/062669b7-5e22-40ba-bf2d-90cdb218f2ec
-  (waveform correlation 0.98; 0.01 at another point of the same file).
+| Loop | Source | Parts of the remix used |
+|---|---|---|
+| ext1 (17.0 s) | OCR00958, https://ocrmirror.org/files/music/remixes/Arkanoid_Black_Block_OC_ReMix.mp3 | 0:00.0 to 0:13.2, then 0:09.2 to 0:11.1 again; played one semitone lower (speed 0.9439) |
+| ext2 (8.0 s) | OCR00021, https://ocrmirror.org/files/music/remixes/Pac-Man_64-bit_OC_ReMix.mp3 | 0:12.1 to 0:14.1, then 0:10.1 to 0:16.1 |
+| ext3 (6.4 s) | OCR00086, https://web.archive.org/web/20130831210310id_/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3 | 0:06.4 to 0:12.8 |
+| ext4 (12.9 s) | OCR00155, https://ocrmirror.org/files/music/remixes/Tetris_MkVaffQuasi_Ultimix_OC_ReMix.mp3 | 0:01.6 to 0:14.5 |
+| ext5 (7.9 s) | OCR00105, https://ocrmirror.org/files/music/remixes/Lemmings_DABOMB_OC_ReMix.mp3 | 0:00.0 to 0:07.9 |
+
+Every second of every loop is found in its remix with a waveform
+correlation of 0.94 to 1.00 (1.00 means the same samples).  The same
+seconds score at most 0.29 anywhere in the other four remixes, which is
+what unrelated music gives.  No part of a loop is new material: where a
+loop does not follow the remix straight through (ext1, ext2), it is two
+pieces of the same remix joined to make a seamless loop.
+
+Notes:
+
+- ext4's opening imitates the Game Boy, which is why it first looked like
+  a recording of the game.
+- ext3's remix was withdrawn by OverClocked ReMix later; it was still
+  listed in October 2003, after ext3 was committed (June 2003).  The
+  archived copy above is the "OC ReMoved" re-release, listed by
+  MusicBrainz: https://musicbrainz.org/recording/062669b7-5e22-40ba-bf2d-90cdb218f2ec
+- sha256 of each source file is in verify_sources.py.
+
+To check it yourself, from the top of the repository (needs
+python3-numpy and ffmpeg; downloads the five MP3s, 12 MB, and takes about
+two minutes):
+
+    python3 nonfree/verify_sources.py
+
+It prints, for every second of each loop, where it is found in the remix,
+the correlation there, and the best correlation in the other remixes.
 
 OverClocked ReMix allows redistribution only without profit, unmodified,
 with credit, and may withdraw that permission
