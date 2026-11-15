@@ -12,6 +12,7 @@ VERSION_TAG = 1601
 ENVIRON_VAR = 'BUBBROS_METASERVER'
 DEFAULT_PORT = 8055         # TCP and UDP
 DEFAULT_HTTP_PORT = 8050    # the page listing the games
+DEFAULT_ADDRESS = 'bubble.aiei.ch'    # public list run by Alex Myczko
 CONNECT_TIMEOUT = 3.0
 NOT_SET = ('no meta-server is set (environment variable %s, or the '
            'Options page)' % ENVIRON_VAR)
@@ -35,7 +36,8 @@ def parse_address(text):
 
 def configured_address():
     """The text of the meta-server setting, environment first, then the
-    configuration file of the web page (local options of this host)."""
+    configuration file of the web page (local options of this host), then
+    DEFAULT_ADDRESS.  An empty setting means none."""
     text = os.environ.get(ENVIRON_VAR)
     if text is not None:
         return text
@@ -48,8 +50,11 @@ def configured_address():
         with open(configfile.path(root)) as f:
             data = ast.literal_eval(f.read().strip() or '{}')
     except (OSError, SyntaxError, ValueError):
-        return None
-    return data.get(gethostname(), {}).get('metaserver')
+        data = {}
+    text = data.get(gethostname(), {}).get('metaserver')
+    if text is None:
+        return DEFAULT_ADDRESS
+    return text
 
 def address():
     """(host, port, httpport) of the meta-server, or None if none is set

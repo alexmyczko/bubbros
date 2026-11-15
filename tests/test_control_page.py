@@ -75,6 +75,19 @@ class Launch(unittest.TestCase):
         self.assertRaises(HTTPRequestError, httppages.PageServer.joinloader,
                           pages, {}, host=['example.org'], port=['80x'])
 
+    def test_options_page_shows_the_meta_server(self):
+        # unset: the default; set: the value; emptied on purpose: empty
+        for saved, shown in ((None, 'bubble.aiei.ch'), ('', ''),
+                             ('meta.example.org', 'meta.example.org')):
+            pages = FakePages({} if saved is None else {'metaserver': saved})
+            pages.graphicmodeslist = lambda: \
+                httppages.PageServer.graphicmodeslist(pages)
+            pages.soundmodeslist = lambda: \
+                httppages.PageServer.soundmodeslist(pages)
+            f, ctype = httppages.PageServer.optionsloader(pages, {})
+            page = ''.join(iter(f.read, ''))  # the page comes in pieces
+            self.assertIn('name="metaserver" value="%s"' % shown, page)
+
     def test_host_names(self):
         for host in ('example.org', '192.168.1.5', 'my-host', '[::1]'):
             self.assertTrue(httppages.HOST_RE.match(host), host)

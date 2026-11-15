@@ -449,6 +449,7 @@ class PageServer:
         locals = {
             'self'   : self,
             'options': self.localoptions,
+            'DEFAULT_METASERVER': metaclient.DEFAULT_ADDRESS,
             }
         return httpserver.load(os.path.join(LOCALDIR, 'data', 'options.html'),
                                'text/html', locals=locals)

@@ -49,10 +49,10 @@ the options.
 
 Games on your local network show up by themselves, and you can always
 join a game by its address. To find games on the Internet, the game uses
-a meta-server, a list where servers register. The public one
-(ctpug.org.za) no longer runs, so none is set by default.
+a meta-server, a list where servers register. The default is
+`bubble.aiei.ch`, run by Alex Myczko.
 
-To use one, give its address as `host`, `host:port` or
+To use another one, or none, give its address (empty for none) as `host`, `host:port` or
 `host:port:httpport` (default ports 8055 and 8050), either on the Options
 page, under Network options, or in an environment variable, which takes
 precedence:

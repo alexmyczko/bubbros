@@ -219,8 +219,8 @@ begingroupitem(1)
   <table border=0><tr>
     <td>
    <p>Internet server list (meta-server), <code>host</code>, <code>host:port</code> or
-      <code>host:port:httpport</code>: <%(nameval("text", "metaserver", default="", mangling=0))s><br>
-      <font size=-1>Leave it empty for none. The environment variable
+      <code>host:port:httpport</code>: <input type=text name="metaserver" value="%(htmlquote(DEFAULT_METASERVER if options.metaserver is None else options.metaserver))s"><br>
+      <font size=-1>The default is %(DEFAULT_METASERVER)s.  Leave it empty for none. The environment variable
       BUBBROS_METASERVER, if set, takes precedence.</font></p>
 
    <p>Network ports are automatically assigned, but you can optionally choose fixed
