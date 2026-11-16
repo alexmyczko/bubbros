@@ -1,6 +1,7 @@
-"""The ext1..ext7 sounds live in nonfree/ (see nonfree/README.md).  The
-subgames find them there, and play silently when that folder is not
-installed."""
+"""The original ext1..ext7 sounds live in nonfree/ (see nonfree/README.md).
+The subgames play them when that folder is installed.  Without it, each
+subgame plays its free music from bubbob/extN/music.wav, and the sound
+effects are silent."""
 
 import os
 import shutil
@@ -26,12 +27,12 @@ def run(root, ext):
 
 class NonFreeSounds(unittest.TestCase):
 
-    def test_every_sound_is_in_nonfree(self):
-        # nothing is left behind in bubbob/ext*/, and nothing is missing
+    def test_originals_win_when_nonfree_is_installed(self):
+        # bubbob/ext*/ holds only the free music, and nothing is missing
         for ext in EXTS:
             d = os.path.join(ROOT, 'bubbob', ext)
             self.assertEqual([f for f in os.listdir(d) if f.endswith('.wav')],
-                             [], ext)
+                             ['music.wav'], ext)
         for ext in EXTS:
             out = run(ROOT, ext)
             sounds = [l.split() for l in out.splitlines()
@@ -52,9 +53,12 @@ class NonFreeSounds(unittest.TestCase):
         for ext in EXTS:
             out = run(root, ext)
             for line in out.splitlines():
-                if line.startswith('SOUND'):
+                if line.startswith('SOUND music '):
+                    self.assertEqual(line, 'SOUND music bubbob/%s/music.wav'
+                                     % ext)
+                elif line.startswith('SOUND'):
                     self.assertTrue(line.endswith(' none'), line)
-            self.assertIn('PLAYING nothing\n', out)
+            self.assertIn('PLAYING %s/music.wav\n' % ext, out)
             self.assertIn('END 400', out)
 
 
