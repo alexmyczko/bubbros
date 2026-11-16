@@ -29,6 +29,9 @@ and artistic.txt.  Research done in November 2026.
 | Withdrawn OverClocked ReMix remixes ("OC ReMoved") | https://musicbrainz.org/series/29eb0b44-aa4c-4ca8-9ea9-da482ce53f00 |
 | Old OverClocked ReMix versions | https://archive.org/details/oldocremix |
 | VGMix archive | https://vgmixarchive.com/ |
+| remix.kwed.org (C64 remixes) | https://remix.kwed.org/ |
+| Red Baron (Dynamix, 1990) | https://archive.org/download/msdos_Red_Baron_1990/Red_Baron_1990.zip , credits https://amiga.abime.net/games/view/red-baron#information |
+| US Copyright Office public records | https://publicrecords.copyright.gov |
 
 This GitHub repository starts with "import from sf.net" (2021); the CVS
 history before that is only in the SourceForge snapshot above.
@@ -85,14 +88,161 @@ authors' mind was to share them" (2005).
 
 ## Subgame sounds and music (ext1 to ext7)
 
-Kept apart in nonfree/; see nonfree/README.md for the files one by one,
-what was claimed about them before, and the OverClocked ReMix sources
-found.  In short: Armin Rigo added them in 2003 to 2005 without naming a
-source; in 2026 he remembered that the musics are extracts of
-OverClocked ReMix remixes, and five were matched to exact excerpts
-(ext1, ext2, ext3, ext4, ext5; ext3's remix was withdrawn later and was
-found in an archived copy).  ext6 and ext7 are in no OverClocked ReMix
-from before June 2005, published or withdrawn.
+Kept apart in nonfree/ because none is free; nonfree/README.md has the
+short list of credits.  This section has the evidence.
+
+### What was said before
+
+- Armin Rigo added all 14 files to CVS between June 2003 and June 2005.
+  The logs name no source.  ext6's music came on 2005-04-05 with the log
+  "ext6."; ext7's on 2005-06-16 with "Red Baron music."
+- The site said "Almost all sprite images, sounds, background musics and
+  levels are directly taken from the MacOS version of Bub & Bob 1 by
+  McSebi".  That text is from May 2003, before the first of these files
+  (authors page in the table above).
+- These sounds are not in McSebi's game, so his grant does not cover
+  them: compared with Bub & Bob 1 versions 1.2, 1.6.3 and 1.7.3, no file
+  matches.
+- Debian shipped them from 2008 to 2019 as Artistic, copied from
+  LICENSE.txt, and other distributions did the same.  Nobody had checked
+  the subgame sounds.  https://bugs.debian.org/934972 (2019) was about the
+  graphics; the first ITP, https://bugs.debian.org/308148, mentioned "some
+  legal problems which need to be figured out first", without detail.
+- Asked in November 2026, Armin first wrote: "I have absolutely no idea any
+  more where the music came from." (RELICENSING-PERMISSIONS.md)  Reading
+  a draft about the game, he remembered (mail of 14 November 2026): "I'm
+  pretty sure they are all extracts of music from OCRemix.org."
+
+Nothing names a source for these files in the CVS history, the old site
+on the Wayback Machine (https://web.archive.org/web/2003*/bub-n-bros.sourceforge.net*),
+the SourceForge forum, trackers and file releases
+(https://sourceforge.net/p/bub-n-bros/discussion/ ,
+https://sourceforge.net/p/bub-n-bros/bugs/ ,
+https://sourceforge.net/p/bub-n-bros/patches/ ,
+https://sourceforge.net/p/bub-n-bros/feature-requests/ ,
+https://sourceforge.net/projects/bub-n-bros/files/), pypy-dev 2003 to
+2008 (https://mail.python.org/pipermail/pypy-dev/), the #pypy IRC logs
+around the ext6 and ext7 commits
+(https://web.archive.org/web/2007/http://tismerysoft.de/pypy/irc-logs/pypy/),
+or the Debian bugs.
+
+### ext1 to ext5: OverClocked ReMix excerpts
+
+Five loops are exact excerpts of one remix each, posted before the loop
+was committed.  Times are in the remix as published:
+
+| Loop | Remix | Page | MP3 | Parts used |
+|---|---|---|---|---|
+| ext1 (17.0 s) | "Black Block" by DJComet (Arkanoid) | https://ocremix.org/remix/OCR00958 | https://ocrmirror.org/files/music/remixes/Arkanoid_Black_Block_OC_ReMix.mp3 | 0:00.0 to 0:13.2, then 0:09.2 to 0:11.1 again; played one semitone lower (speed 0.9439) |
+| ext2 (8.0 s) | "64-bit" by Peterrian Productions (Pac-Man) | https://ocremix.org/remix/OCR00021 | https://ocrmirror.org/files/music/remixes/Pac-Man_64-bit_OC_ReMix.mp3 | 0:12.1 to 0:14.1, then 0:10.1 to 0:16.1 |
+| ext3 (6.4 s) | "Galagzee" by zee-roh (Galaga), withdrawn later | https://web.archive.org/web/20031023174756/http://www.ocremix.org:80/detailmix.php?mixid=OCR00086 | https://web.archive.org/web/20130831210310id_/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3 | 0:06.4 to 0:12.8 |
+| ext4 (12.9 s) | "MkVaffQuasi Ultimix" by MkVaff (Tetris) | https://ocremix.org/remix/OCR00155 | https://ocrmirror.org/files/music/remixes/Tetris_MkVaffQuasi_Ultimix_OC_ReMix.mp3 | 0:01.6 to 0:14.5 |
+| ext5 (7.9 s) | "DABOMB" by alk (Lemmings) | https://ocremix.org/remix/OCR00105 | https://ocrmirror.org/files/music/remixes/Lemmings_DABOMB_OC_ReMix.mp3 | 0:00.0 to 0:07.9 |
+
+sha256 of the MP3s:
+
+    f026567718aedec58a6d078f0d745ae4de915f82c2944b29d9f447666373345c  Arkanoid_Black_Block_OC_ReMix.mp3
+    bf20093f2ad29f78b7d07ba3444d0ad55bc4b577e0aa9bb46ce02712e5175d33  Pac-Man_64-bit_OC_ReMix.mp3
+    755dc6e4ff35ce1bc9abef5d23ec5cb0db25df0d3d1a25c20d02f364279a7c9b  Galaga_Galagzee_OC_ReMoved.mp3
+    f7f828d5e1b87803a34e9927bddb19764084356ecffe4d7eeedc6bfac8dc8869  Tetris_MkVaffQuasi_Ultimix_OC_ReMix.mp3
+    b868cc7a8d8079630ffe64ea7a99be22eabe4a6ecb26b76907a1a29684d63ebe  Lemmings_DABOMB_OC_ReMix.mp3
+
+Every second of every loop is found in its remix with a waveform
+correlation of 0.94 to 1.00 (1.00 means the same samples).  The same
+seconds score at most 0.29 anywhere in the other four remixes, which is
+what unrelated music gives.  No part of a loop is new material: where a
+loop does not follow the remix straight through (ext1, ext2), it is two
+pieces of the same remix joined to make a seamless loop.  To check it
+again, from the top of the repository (downloads the five MP3s, 12 MB,
+about two minutes):
+
+    python3 tools/verify_sources.py
+
+Notes:
+
+- ext4's opening imitates the Game Boy, which is why it first looked like
+  a recording of the game.
+- ext3's remix was withdrawn by OverClocked ReMix later; it was still
+  listed in October 2003, after ext3 was committed (June 2003).  The MP3
+  above is the "OC ReMoved" re-release, listed by MusicBrainz:
+  https://musicbrainz.org/recording/062669b7-5e22-40ba-bf2d-90cdb218f2ec
+
+### ext7: the Red Baron title theme
+
+ext7's log says "Red Baron music."  The loop is the title theme of Red
+Baron (Dynamix, published by Sierra, 1990, MS-DOS): the same melody and
+tempo, but a different arrangement, without the drums and the war sounds
+of the game.
+
+- Game: https://archive.org/download/msdos_Red_Baron_1990/Red_Baron_1990.zip
+  (sha1 90693626209483f3d43afc9c4b5f8cb7c4eff94c).  Its title music,
+  recorded in DOSBox with AdLib, and the MT-32 recordings
+  https://youtu.be/1it1OvVZp-I and https://youtu.be/L7z0P5yav30 score 28
+  to 40 landmark pairs against ext7.  Unrelated music scores at most 17,
+  and the same recording 128 or more.  So the notes match, but none of
+  these is the recording.  Listening confirms it: same melody, reworked.
+- Credits of the game: Music Score, Cayanie Music; Sound Effects and
+  Music Editing, Christopher Stevens; Audio Director, Alan McKean; Amiga
+  music, Ken Rogers (https://amiga.abime.net/games/view/red-baron#information).
+  A later fan arrangement on YouTube also credits the original music to
+  Cayanie Music: https://www.youtube.com/watch?v=lupk2oqy4JU
+- US Copyright Office recordation V2393P099 (1988-02-29) names "John
+  Benjamin (Benjy) G. Wertheimer & Cathy S. Hudnall d.b.a. Cayanie
+  Music" (https://publicrecords.copyright.gov , record voyager_1502666).
+  They are Oregon musicians and Dynamix was in Eugene, Oregon, but no
+  source ties them to the game yet.
+- Who made the arrangement in ext7 is unknown.  It is not in any
+  collection searched (list below).
+
+The composition is copyrighted, so ext7's music is not free, whoever
+arranged it.
+
+### ext6: unknown
+
+ext6 is now a snake game.  It began as a Tron light-cycle game, which is
+why its class is named Tron; the log of 2005-05-10 says: Gave up
+emulating a "tron" and did a "snake".  So the Tron name says nothing
+about the music, and no Tron soundtrack matched.  The loop (19.6 s) is
+rock with drums and guitar.  Shazam finds nothing.
+
+ext6 and ext7 are 22.05 kHz; ext1 to ext5 are 44.1 kHz.  ext6 never
+repeats a bar exactly (best self-correlation 0.61), unlike a plain MIDI
+rendering, so it is probably cut from a recording.
+
+### What was searched for ext6 and ext7
+
+Each loop was compared by landmark fingerprint at playback rates 0.25 to
+4, tempo 0.5 to 2 and pitch shifts of up to two octaves (also reversed,
+and on the left, right and difference channels for the OverClocked ReMix
+sets).  The same search finds ext1, ext3 and ext5 again.  No match above
+noise in:
+
+- every OverClocked ReMix posted before June 2005 that is still
+  published (1228 tracks of
+  https://bt.ocremix.org/torrents/OC_ReMix_Collection_-_1_to_4000_%5Bv20201028%5D.torrent);
+- the 125 withdrawn remixes up to OCR01364 (MusicBrainz "OC ReMoved"
+  series https://musicbrainz.org/series/29eb0b44-aa4c-4ca8-9ea9-da482ce53f00 ,
+  172 archived files and 8 copies on old mirrors), and 107 old versions
+  at https://archive.org/details/oldocremix ;
+- VGMix: 4688 songs of the VGMix Archive 3.0 torrent (https://vgmixarchive.com/ ,
+  info hash e3930ea1139b3d7e1038070ebd376ddc0491e842), all of VGMix 1
+  and every VGMix 2 song dated before 2005-04-06 or undated;
+- remix.kwed.org: 1904 C64 remixes, the torrents "RKO-2000 Complete" to
+  "RKO-2005 Complete" and "Not on RKO Anymore" (https://remix.kwed.org/);
+- rock game-music covers: Grospixels "Gromix" (228,
+  https://www.grospixels.com/site/remixang.php), Dwelling of Duels
+  2003-09 to 2005-03 (184, https://www.dwellingofduels.net/duels/), the
+  NESkimos, Minibosses, The Advantage, The OneUps, Machinae Supremacy,
+  Metroid Metal, Black Mages, Press Play On Tape;
+- music of free games in Debian (274 files: Nexuiz, Alien Arena,
+  Warzone 2100 and others), Jets'n'Guns and Quake III Arena;
+- about 3000 game soundtracks and modules (https://modarchive.org ,
+  https://www.zophar.net/music , https://ftp.modland.com);
+- for ext7: over 40 recordings of Red Baron (1990) and of other biplane
+  and Snoopy games and songs (Wings, Knights of the Sky, Sopwith, Blue
+  Max, 1942, Snoopy vs the Red Baron), and MIDI files of them;
+- for ext6: Tron soundtracks (Wendy Carlos 1982, the arcade game, Discs
+  of Tron, Tron 2.0) and Armagetron Advanced.
 
 ## How the comparisons were made
 
@@ -111,11 +261,11 @@ from before June 2005, published or withdrawn.
   named in https://ocremix.org/remix/OCR00001 and following pages).
   The search was checked by finding the known matches again in the
   torrent copies (0.975 and 0.880).
-- The five matches can be checked again with nonfree/verify_sources.py,
+- The five matches can be checked again with tools/verify_sources.py,
   which downloads each remix from its public URL, checks its sha256 and
   prints the correlation of every second of the loop, with a control.
-- Wider search for ext6 and ext7: landmark fingerprints on the mono,
-  left, right and difference channels, at playback rates 0.25 to 4,
-  tempo 0.5 to 2, pitch up to two octaves either way, and reversed,
-  over the withdrawn remixes and old versions as well (see
-  nonfree/README.md).  It finds ext1, ext3 and ext5 again.
+- Wider search for ext6 and ext7: landmark fingerprints (peaks of a log
+  spectrogram, paired into hashes), queried over a grid of playback
+  rates, tempos and pitch shifts.  Unrelated music gives 9 to 22
+  matching pairs, another arrangement of the same tune 20 to 40, the
+  same recording 128 to 937.

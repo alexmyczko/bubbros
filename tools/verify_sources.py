@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check that each subgame music in nonfree/ is an excerpt of the
-OverClocked ReMix recording named in nonfree/README.md.
+OverClocked ReMix recording named in nonfree/README.md and PROVENANCE.md.
 
 For each loop it downloads the source MP3 from its public URL (or uses a
 copy in --cache), checks its sha256, decodes both files with ffmpeg to
@@ -15,7 +15,7 @@ The pieces are placed one by one because some loops are cut from two
 places of the remix (ext1, ext2).
 
 Needs python3-numpy and ffmpeg.  Usage, from the top of the repository:
-    python3 nonfree/verify_sources.py [--cache DIR] [ext1 ext3 ...]
+    python3 tools/verify_sources.py [--cache DIR] [ext1 ext3 ...]
 """
 
 import argparse
@@ -29,7 +29,8 @@ import urllib.request
 import numpy as np
 
 SR = 44100
-HERE = os.path.dirname(os.path.abspath(__file__))
+NONFREE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       os.pardir, 'nonfree')
 
 # loop, source page, source MP3, its sha256, speed of the source in the loop
 SOURCES = [
@@ -123,7 +124,7 @@ def main():
     for ext, page, url, sha, speed in SOURCES:
         if args.only and ext not in args.only:
             continue
-        loop = decode(os.path.join(HERE, 'bubbob', ext, 'music.wav'))
+        loop = decode(os.path.join(NONFREE, 'bubbob', ext, 'music.wav'))
         print('%s/music.wav (%.2f s) in %s, speed %.4f' %
               (ext, len(loop) / SR, page, speed))
         found, control = [], []

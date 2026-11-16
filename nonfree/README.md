@@ -1,146 +1,43 @@
-# nonfree/: sounds of unknown licence
+# nonfree/: the subgame sounds, not free
 
 This folder holds the 14 sounds of the subgames (bubbob/ext1 to ext7),
-under the same paths they had in bubbob/.  They are kept, not deleted,
-but none has a free licence: five musics are extracts of OverClocked
-ReMix remixes of game music, and the other files have no known author.
-The game plays them from here, as before.  A
-distribution can leave this folder out, and the game then plays those
-subgames without sound (common/gamesrv.py, soundpath()); putting the
-folder back, for example from a separate package, brings the sounds back.
+under the same paths they had in bubbob/.  None of them has a free
+licence, so they are kept apart from the rest of the game.
 
-| File | What it is |
+## Why they are not free
+
+- The five identified musics are cut from OverClocked ReMix remixes.
+  OverClocked ReMix allows redistribution only without profit,
+  unmodified, with credit, and may withdraw that permission
+  (https://ocremix.org/info/Content_Policy).  The game tunes underneath
+  belong to their own copyright holders.
+- ext7's music is an arrangement of the title theme of Red Baron
+  (Dynamix, 1990), a copyrighted composition.
+- The other files have no known author, so no licence can be shown.
+
+## Credits
+
+| File | Source |
 |---|---|
-| ext1/music.wav | "Black Block" by DJComet, OverClocked ReMix (https://ocremix.org/remix/OCR00958), Arkanoid |
-| ext2/music.wav | "64-bit" by Peterrian Productions, OverClocked ReMix (https://ocremix.org/remix/OCR00021), Pac-Man |
-| ext4/music.wav | "MkVaffQuasi Ultimix" by MkVaff, OverClocked ReMix (https://ocremix.org/remix/OCR00155), Tetris |
-| ext5/music.wav | "DABOMB" by alk, OverClocked ReMix (https://ocremix.org/remix/OCR00105), Lemmings |
-| ext3/music.wav | "Galagzee" by zee-roh, OverClocked ReMix OCR00086 (withdrawn; 2003 page: https://web.archive.org/web/20031023174756/http://www.ocremix.org:80/detailmix.php?mixid=OCR00086), Galaga |
-| ext6, ext7 music.wav | not identified; not in any OverClocked ReMix from before June 2005, published or withdrawn |
-| ext5/ouch.wav, ext6/crash.wav | not identified |
+| ext1/music.wav | "Black Block" by DJComet, Arkanoid. https://ocremix.org/remix/OCR00958 , MP3: https://ocrmirror.org/files/music/remixes/Arkanoid_Black_Block_OC_ReMix.mp3 |
+| ext2/music.wav | "64-bit" by Peterrian Productions, Pac-Man. https://ocremix.org/remix/OCR00021 , MP3: https://ocrmirror.org/files/music/remixes/Pac-Man_64-bit_OC_ReMix.mp3 |
+| ext3/music.wav | "Galagzee" by zee-roh, Galaga, OCR00086 (withdrawn later). 2003 page: https://web.archive.org/web/20031023174756/http://www.ocremix.org:80/detailmix.php?mixid=OCR00086 , MP3: https://web.archive.org/web/20130831210310id_/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3 |
+| ext4/music.wav | "MkVaffQuasi Ultimix" by MkVaff, Tetris. https://ocremix.org/remix/OCR00155 , MP3: https://ocrmirror.org/files/music/remixes/Tetris_MkVaffQuasi_Ultimix_OC_ReMix.mp3 |
+| ext5/music.wav | "DABOMB" by alk, Lemmings. https://ocremix.org/remix/OCR00105 , MP3: https://ocrmirror.org/files/music/remixes/Lemmings_DABOMB_OC_ReMix.mp3 |
+| ext7/music.wav | arrangement of the Red Baron (Dynamix, 1990) title theme; music of the game credited to Cayanie Music; arranger and recording unknown |
+| ext6/music.wav | unknown (rock, with drums and guitar) |
+| ext5/ouch.wav, ext6/crash.wav | unknown |
 | ext1/brick.wav, ext1/wall.wav, ext3/shoot.wav, ext7/fire.wav, ext7/hit.wav | generated tones and noise, author unknown |
 
-## What was said before
+The evidence for each line, the parts of each remix used, and what was
+searched for the unknown files are in ../PROVENANCE.md.  To check the five
+remixes yourself: `python3 tools/verify_sources.py` (needs python3-numpy
+and ffmpeg).
 
-- Armin Rigo added all 14 files to CVS between June 2003 and June 2005.
-  The logs name no source; ext7's says only "Red Baron music."
-  (CVS repository: https://sourceforge.net/code-snapshots/cvs/b/bu/bub-n-bros.zip;
-  this GitHub repository starts in 2021 and does not have that history.)
-- The site said "Almost all sprite images, sounds, background musics and
-  levels are directly taken from the MacOS version of Bub & Bob 1 by
-  McSebi".  That text is from May 2003, before the first of these files:
-  https://web.archive.org/web/20030506000913/http://bub-n-bros.sourceforge.net:80/authors.html
-- McSebi released "the graphics and sound data" of his own game under the
-  Artistic License in 2005 (LICENSE.txt), and again in 2009 as
-  Artistic-2.0 (artistic.txt; Mandriva's note of that mail:
-  https://github.com/OpenMandrivaAssociation/bubbros/blob/1f2138cc/bubbros.spec).
-  These sounds are not in his game: compared with Bub & Bob 1 versions
-  1.2, 1.6.3 and 1.7.3, no file matches (https://macintoshgarden.org/games/bub-bob,
-  https://archive.org/download/tucows_205607_Bub_And_Bob/bubandbob.sit).
-- Debian shipped them from 2008 to 2019 as Artistic, copied from
-  LICENSE.txt (https://snapshot.debian.org/package/bubbros/), and other
-  distributions did the same.  In https://bugs.debian.org/934972 (2019) a
-  user said the graphics were copied from Taito's Bubble Bobble; the bug
-  was closed with "Bubbros has a DFSG-compliant license".  That answer was
-  about LICENSE.txt, and nobody checked the subgame sounds.  The first
-  Debian ITP, https://bugs.debian.org/308148, mentioned "some legal
-  problems which need to be figured out first", without detail.
-- Asked in November 2026, Armin first wrote: "I have absolutely no idea any
-  more where the music came from." (RELICENSING-PERMISSIONS.md)  Reading
-  a draft about the game, he remembered (mail of 14 November 2026): "I'm
-  pretty sure they are all extracts of music from OCRemix.org."
+## How the game uses this folder
 
-## What was checked (November 2026)
-
-Nothing names a source for these files in:
-
-- the CVS history: https://sourceforge.net/code-snapshots/cvs/b/bu/bub-n-bros.zip
-- the old site on the Wayback Machine, 2003 to 2008:
-  https://web.archive.org/web/2003*/bub-n-bros.sourceforge.net*
-- the SourceForge forum, trackers and file releases:
-  https://sourceforge.net/p/bub-n-bros/discussion/ ,
-  https://sourceforge.net/p/bub-n-bros/bugs/ ,
-  https://sourceforge.net/p/bub-n-bros/patches/ ,
-  https://sourceforge.net/p/bub-n-bros/feature-requests/ ,
-  https://sourceforge.net/projects/bub-n-bros/files/
-- pypy-dev, 2003 to 2008: https://mail.python.org/pipermail/pypy-dev/
-- the #pypy IRC logs around the ext6 and ext7 commits (April and June
-  2005): https://web.archive.org/web/2007/http://tismerysoft.de/pypy/irc-logs/pypy/
-- the Debian bugs: https://bugs.debian.org/cgi-bin/pkgreport.cgi?src=bubbros;archive=both
-
-The music was first compared by sound against about 3000 game soundtracks
-and modules (https://modarchive.org , https://www.zophar.net/music ,
-https://ftp.modland.com , free games in Debian).  That found the tunes
-(Arkanoid, the Pac-Man jingle, Tetris) but not the recordings.  After
-Armin's second mail, 270 OverClocked ReMix tracks posted before each
-commit were compared, and five loops are exact excerpts of one of them.
-Times are in the remix as published:
-
-| Loop | Source | Parts of the remix used |
-|---|---|---|
-| ext1 (17.0 s) | OCR00958, https://ocrmirror.org/files/music/remixes/Arkanoid_Black_Block_OC_ReMix.mp3 | 0:00.0 to 0:13.2, then 0:09.2 to 0:11.1 again; played one semitone lower (speed 0.9439) |
-| ext2 (8.0 s) | OCR00021, https://ocrmirror.org/files/music/remixes/Pac-Man_64-bit_OC_ReMix.mp3 | 0:12.1 to 0:14.1, then 0:10.1 to 0:16.1 |
-| ext3 (6.4 s) | OCR00086, https://web.archive.org/web/20130831210310id_/http://doulifee.com//Storage/OC_Removed/Galaga_Galagzee_OC_ReMoved.mp3 | 0:06.4 to 0:12.8 |
-| ext4 (12.9 s) | OCR00155, https://ocrmirror.org/files/music/remixes/Tetris_MkVaffQuasi_Ultimix_OC_ReMix.mp3 | 0:01.6 to 0:14.5 |
-| ext5 (7.9 s) | OCR00105, https://ocrmirror.org/files/music/remixes/Lemmings_DABOMB_OC_ReMix.mp3 | 0:00.0 to 0:07.9 |
-
-Every second of every loop is found in its remix with a waveform
-correlation of 0.94 to 1.00 (1.00 means the same samples).  The same
-seconds score at most 0.29 anywhere in the other four remixes, which is
-what unrelated music gives.  No part of a loop is new material: where a
-loop does not follow the remix straight through (ext1, ext2), it is two
-pieces of the same remix joined to make a seamless loop.
-
-Notes:
-
-- ext4's opening imitates the Game Boy, which is why it first looked like
-  a recording of the game.
-- ext3's remix was withdrawn by OverClocked ReMix later; it was still
-  listed in October 2003, after ext3 was committed (June 2003).  The
-  archived copy above is the "OC ReMoved" re-release, listed by
-  MusicBrainz: https://musicbrainz.org/recording/062669b7-5e22-40ba-bf2d-90cdb218f2ec
-- sha256 of each source file is in verify_sources.py.
-
-To check it yourself, from the top of the repository (needs
-python3-numpy and ffmpeg; downloads the five MP3s, 12 MB, and takes about
-two minutes):
-
-    python3 nonfree/verify_sources.py
-
-It prints, for every second of each loop, where it is found in the remix,
-the correlation there, and the best correlation in the other remixes.
-
-OverClocked ReMix allows redistribution only without profit, unmodified,
-with credit, and may withdraw that permission
-(https://ocremix.org/info/Content_Policy); the game tunes underneath
-belong to their own copyright holders.  So these files are not free
-software even with the credit above.
-
-## Replacing them
-
-The game loads each file by name, so a free sound with the same name in
-bubbob/extN/ replaces the one here.  Candidates: new recordings or
-compositions under a free licence, CC0 or CC-BY sounds (opengameart.org,
-freesound.org), or sounds from free games already in Debian.  No source was found for ext6 and ext7.  The code names those
-subgames Tron and Camel (Sopwith Camel; ext7's log says "Red Baron
-music"), so their sources are probably remixes of a Tron game and of a
-biplane game.  Searched with no match:
-
-- every OverClocked ReMix posted before June 2005 that is still
-  published (1228 tracks of the collection torrent "OC ReMix Collection 1
-  to 4000",
-  https://bt.ocremix.org/torrents/OC_ReMix_Collection_-_1_to_4000_%5Bv20201028%5D.torrent);
-- the 125 withdrawn remixes numbered up to OCR01364, named from archived
-  OverClocked ReMix pages and the MusicBrainz "OC ReMoved" series
-  (https://musicbrainz.org/series/29eb0b44-aa4c-4ca8-9ea9-da482ce53f00);
-  the audio of all that are archived (172 "OC ReMoved" files and 8
-  copies on old mirrors);
-- 107 old versions at https://archive.org/details/oldocremix ;
-- 269 songs of VGMix (https://vgmixarchive.com/), only part of it.
-
-Each was searched at playback rates 0.25 to 4, tempo changes 0.5 to 2,
-pitch shifts of up to two octaves, reversed, and on the left, right and
-difference channels; the same search finds ext1, ext3 and ext5 again.
-Not searched: the rest of VGMix, and Tron soundtracks (Wendy Carlos,
-1982; Tron 2.0, 2003).  Record the
-author and licence of each in RELICENSING-PERMISSIONS.md.
+The game plays these files from here.  A distribution can leave the
+folder out, and the game then plays those subgames without sound
+(common/gamesrv.py, soundpath()).  Putting the folder back, for example
+from a separate package, brings the sounds back.  A free file with the
+same name in bubbob/extN/ replaces the one here.
