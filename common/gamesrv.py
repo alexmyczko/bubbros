@@ -929,14 +929,15 @@ NONFREE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
   __file__))), 'nonfree')
 
 def soundpath(filename):
-  """Where to read a sound: its own path, else the same path under
-  nonfree/ (sounds of unknown licence, see nonfree/README.md), else None."""
-  if os.path.exists(filename):
-    return filename
+  """Where to read a sound: the same path under nonfree/ if that folder is
+  installed (the original sounds, not free, see nonfree/README.md), else
+  its own path (a free replacement, or the sound itself), else None."""
   rel = os.path.relpath(os.path.abspath(filename), os.path.dirname(NONFREE))
   path = os.path.join(NONFREE, rel)
   if not rel.startswith(os.pardir) and os.path.exists(path):
     return path
+  if os.path.exists(filename):
+    return filename
   return None
 
 class NoSample:
