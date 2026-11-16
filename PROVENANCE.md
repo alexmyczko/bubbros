@@ -209,6 +209,25 @@ ext6 and ext7 are 22.05 kHz; ext1 to ext5 are 44.1 kHz.  ext6 never
 repeats a bar exactly (best self-correlation 0.61), unlike a plain MIDI
 rendering, so it is probably cut from a recording.
 
+### The sound effects
+
+| File | Committed | Format | What it is |
+|---|---|---|---|
+| ext1/brick.wav | 2003-06-07, "sound and music for ext1" | 44.1 kHz, 0.66 s | simple tone, 26 distinct sample values |
+| ext1/wall.wav | 2003-06-07, same commit | 44.1 kHz, exactly 0.300 s | pure tone starting at zero |
+| ext3/shoot.wav | 2003-06-13, "new ext3" | 44.1 kHz, exactly 0.300 s | pure tone starting at zero |
+| ext7/hit.wav | 2005-06-15, "Sounds for ext7.  Still missing the music, though." | 44.1 kHz, 3308 samples | noise burst |
+| ext7/fire.wav | 2005-06-15, then "Red Baron music." and "Tweaks." | 11.025 kHz, 3308 samples | short tone |
+| ext5/ouch.wav | 2004-01-09, "New ext5 extension." | 11.025 kHz, 0.23 s | a recorded voice |
+| ext6/crash.wav | 2005-04-05, "ext6." | 22.05 kHz, 0.59 s | a recorded crash; ext7 uses it too |
+
+No commit, comment, page or WAV header (no metadata chunk) names a
+source.  The first five look made by a program: exact round lengths,
+waveforms that start at zero, and two files of exactly the same length.
+So they are probably Armin's own, but he has not confirmed it.  ouch.wav
+and crash.wav are recordings of unknown origin; they were never compared
+with game sound effects.  Without nonfree/, these effects are silent.
+
 ### What was searched for ext6 and ext7
 
 Each loop was compared by landmark fingerprint at playback rates 0.25 to
