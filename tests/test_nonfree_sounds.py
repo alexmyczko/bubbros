@@ -1,6 +1,7 @@
-"""The ext1..ext7 sounds live in nonfree/ (see nonfree/README.md).  The
-subgames find them there, and play silently when that folder is not
-installed."""
+"""The original ext1..ext7 sounds live in nonfree/ (see nonfree/README.md).
+The subgames play them when that folder is installed.  Without it, each
+subgame plays the free files of the same name in bubbob/extN/ (music and
+effects, credits in PROVENANCE.md)."""
 
 import os
 import shutil
@@ -26,12 +27,14 @@ def run(root, ext):
 
 class NonFreeSounds(unittest.TestCase):
 
-    def test_every_sound_is_in_nonfree(self):
-        # nothing is left behind in bubbob/ext*/, and nothing is missing
+    def test_originals_win_when_nonfree_is_installed(self):
+        # every original in nonfree/ has a free file of the same name
         for ext in EXTS:
-            d = os.path.join(ROOT, 'bubbob', ext)
-            self.assertEqual([f for f in os.listdir(d) if f.endswith('.wav')],
-                             [], ext)
+            wavs = lambda d: sorted(f for f in os.listdir(d)
+                                    if f.endswith('.wav'))
+            self.assertEqual(
+                wavs(os.path.join(ROOT, 'bubbob', ext)),
+                wavs(os.path.join(ROOT, 'nonfree', 'bubbob', ext)), ext)
         for ext in EXTS:
             out = run(ROOT, ext)
             sounds = [l.split() for l in out.splitlines()
@@ -51,10 +54,14 @@ class NonFreeSounds(unittest.TestCase):
             'nonfree', '.git', '__pycache__'))
         for ext in EXTS:
             out = run(root, ext)
-            for line in out.splitlines():
-                if line.startswith('SOUND'):
-                    self.assertTrue(line.endswith(' none'), line)
-            self.assertIn('PLAYING nothing\n', out)
+            sounds = [l.split() for l in out.splitlines()
+                      if l.startswith('SOUND')]
+            self.assertTrue(sounds, ext)
+            for _, name, path in sounds:
+                # ext7 also uses ext6's crash.wav
+                self.assertRegex(path, r'^bubbob/ext\d/%s\.wav$'
+                                 % name.replace('snd_', ''))
+            self.assertIn('PLAYING %s/music.wav\n' % ext, out)
             self.assertIn('END 400', out)
 
 
