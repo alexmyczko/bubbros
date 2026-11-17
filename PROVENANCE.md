@@ -227,8 +227,10 @@ rendering, so it is probably cut from a recording.
 No commit, comment, page or WAV header (no metadata chunk) names a
 source.  The first five look made by a program: exact round lengths,
 waveforms that start at zero, and two files of exactly the same length.
-So they are probably Armin's own, but he does not remember making
-them, so they have no licence and stay in nonfree/.  ouch.wav
+So they are probably Armin's own.  He thinks so too, but is not sure
+which ones: "it's quite possible that I generated the files for some of
+these sounds" (17 November 2026).  Without a licence, they stay in
+nonfree/.  ouch.wav
 and crash.wav are recordings of unknown origin; they were never compared
 with game sound effects.  Without nonfree/, the game plays the free
 effects described below.

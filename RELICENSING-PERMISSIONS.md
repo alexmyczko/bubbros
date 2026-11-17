@@ -16,7 +16,7 @@ LICENSE.txt.
 | Patrick Viney | bubbob/levels/LostLevels.bin ("Lost Levels") | none recorded | no address; asked McSebi to forward |
 | Armin Rigo, Gio, Michel-Stéphane | the Python levels (bubbob/levels/*.py) | MIT, like the code | confirmed 2026-11-14, below |
 | unknown | the ext1 to ext7 sounds and music | none known | Armin has no record of their origin, below |
-| Armin Rigo? | the five generated effects (brick, wall, shoot, fire, hit) | none | he does not remember making them (2026-11-17), so no licence |
+| Armin Rigo, probably | the five generated effects (brick, wall, shoot, fire, hit) | none | he thinks he probably made some of them, but is not sure: "it's quite possible that I generated the files for some of these sounds" (2026-11-17); not a licence |
 
 The three level packs were made by fans of the Mac game and published on
 McSebi's site around 2002, credited to their authors
