@@ -88,6 +88,20 @@ class Launch(unittest.TestCase):
             page = ''.join(iter(f.read, ''))  # the page comes in pieces
             self.assertIn('name="metaserver" value="%s"' % shown, page)
 
+    def test_command_line_ports_win_over_saved_options(self):
+        # bb.py --port HTTP=18100: the control page must not fall back to
+        # the default 8000 when the saved options are loaded
+        import msgstruct
+        saved = dict(msgstruct.PORTS)
+        self.addCleanup(lambda: (msgstruct.PORTS.clear(),
+                                 msgstruct.PORTS.update(saved)))
+        msgstruct.PORTS.clear()
+        msgstruct.PORTS['HTTP'] = 18100
+        pages = FakePages({'port_HTTP': '18200', 'port_LISTEN': '18300'})
+        pages.cmdlineports = dict(msgstruct.PORTS)
+        httppages.PageServer.reloadports(pages)
+        self.assertEqual(msgstruct.PORTS, {'HTTP': 18100, 'LISTEN': 18300})
+
     def test_host_names(self):
         for host in ('example.org', '192.168.1.5', 'my-host', '[::1]'):
             self.assertTrue(httppages.HOST_RE.match(host), host)
