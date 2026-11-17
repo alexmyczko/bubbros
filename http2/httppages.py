@@ -53,6 +53,9 @@ class PageServer:
         data = self.loadoptionfile()
         self.globaloptions = Options(data.get('*', {}))
         self.localoptions  = Options(data.get(self.localhost, {}))
+        # bb.py --port NAME=#: these win over the saved options
+        import msgstruct
+        self.cmdlineports = dict(msgstruct.PORTS)
         self.reloadports()
         #self.inetserverlist = None
         #self.inetservers = {}
@@ -196,6 +199,7 @@ class PageServer:
                 except:
                     continue
                 msgstruct.PORTS[key] = value
+        msgstruct.PORTS.update(self.cmdlineports)
 
     def startgame(self):
         self.reloadports()
