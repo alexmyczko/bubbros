@@ -62,7 +62,7 @@ static void display_close(DisplayObject* self)
   release_window_data(self);
   if (self->win)
     {
-      SetWindowLong(self->win, 0, 0);
+      SetWindowLongPtr(self->win, 0, 0);
       DestroyWindow(self->win);
       self->win = (HWND) NULL;
     }
@@ -168,15 +168,24 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
   RegisterClass(&wcls);
 
   /* Create the window */
-  self->win = CreateWindowEx(0, CLASSNAME, NULL,
-                             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU |
-                             WS_MINIMIZEBOX | WS_VISIBLE,
-                             CW_USEDEFAULT, CW_USEDEFAULT,
-                             width + 2*GetSystemMetrics(SM_CXFIXEDFRAME), 
-			     height + 2*GetSystemMetrics(SM_CYFIXEDFRAME) + GetSystemMetrics(SM_CYCAPTION),
-                             (HWND) NULL, (HMENU) NULL,
-                             /*HINSTANCE*/ 0, (LPVOID) NULL);
-  if (self->win == (HWND) NULL) goto err2;
+  {
+    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    RECT rc = {0, 0, width, height}, wr;
+    AdjustWindowRectEx(&rc, style, FALSE, 0);
+    self->win = CreateWindowEx(0, CLASSNAME, NULL, style,
+                               CW_USEDEFAULT, CW_USEDEFAULT,
+                               rc.right - rc.left, rc.bottom - rc.top,
+                               (HWND) NULL, (HMENU) NULL,
+                               /*HINSTANCE*/ 0, (LPVOID) NULL);
+    if (self->win == (HWND) NULL) goto err2;
+    if (GetClientRect(self->win, &rc) && GetWindowRect(self->win, &wr) &&
+        (rc.right != width || rc.bottom != height))
+      SetWindowPos(self->win, NULL, 0, 0,
+                   wr.right - wr.left + width - rc.right,
+                   wr.bottom - wr.top + height - rc.bottom,
+                   SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    ShowWindow(self->win, SW_SHOW);
+  }
   SetWindowLongPtr(self->win, 0, (LONG_PTR) self);
 
   /* Create DC */
