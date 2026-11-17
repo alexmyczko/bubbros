@@ -112,6 +112,9 @@ short list of credits.  This section has the evidence.
   more where the music came from." (RELICENSING-PERMISSIONS.md)  Reading
   a draft about the game, he remembered (mail of 14 November 2026): "I'm
   pretty sure they are all extracts of music from OCRemix.org."
+- Shown this study (17 November 2026), he did not remember ext6, ouch
+  or crash, thought ext7 might come from the 1990 Red Baron game, and
+  said it is possible he generated some of the effects.
 
 Nothing names a source for these files in the CVS history, the old site
 on the Wayback Machine (https://web.archive.org/web/2003*/bub-n-bros.sourceforge.net*),
@@ -224,7 +227,8 @@ rendering, so it is probably cut from a recording.
 No commit, comment, page or WAV header (no metadata chunk) names a
 source.  The first five look made by a program: exact round lengths,
 waveforms that start at zero, and two files of exactly the same length.
-So they are probably Armin's own, but he has not confirmed it.  ouch.wav
+So they are probably Armin's own, but he does not remember making
+them, so they have no licence and stay in nonfree/.  ouch.wav
 and crash.wav are recordings of unknown origin; they were never compared
 with game sound effects.  Without nonfree/, these effects are silent.
 
