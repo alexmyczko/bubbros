@@ -38,7 +38,7 @@ and ffmpeg).
 
 When this folder is installed, the game plays these files
 (common/gamesrv.py, soundpath()).  A distribution can leave it out: each
-subgame then plays its free music from bubbob/extN/music.wav (credits in
-../PROVENANCE.md), and its sound effects are silent.  Putting the folder
+subgame then plays its free music and sound effects from bubbob/extN/
+(credits in ../PROVENANCE.md).  Putting the folder
 back, for example from a separate package, brings the original sounds
 back.
