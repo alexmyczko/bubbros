@@ -2,7 +2,10 @@
 """makeloop.py SRC START END RATE TARGET_DB OUT.wav
 Cut SRC from START to END seconds as a seamless loop: the 50 ms of audio
 right after END are crossfaded into the start.  Mono, unsigned 8 bit at
-RATE Hz (the format of the game's other loops), mean level TARGET_DB."""
+RATE Hz (the format of the game's other loops), mean level TARGET_DB.
+
+Copyright 2026 Juan Manuel Méndez Rey <juan.mendezr@proton.me>.
+Released under CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/"""
 import sys, subprocess, wave, numpy as np
 src, a, b, rate, target, out = sys.argv[1], float(sys.argv[2]), float(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5]), sys.argv[6]
 X = 0.05

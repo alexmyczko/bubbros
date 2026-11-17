@@ -10,6 +10,9 @@ generated entirely by this script, so it can be rebuilt from source.
 usage: korobeiniki_chip.py OUT.wav [BPM]
 
 bubbob/ext4/music.wav is: tools/korobeiniki_chip.py bubbob/ext4/music.wav 150
+
+Copyright 2026 Juan Manuel Méndez Rey <juan.mendezr@proton.me>.
+Released under CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
 """
 import sys, wave
 import numpy as np
