@@ -48,6 +48,24 @@ class FileNames(unittest.TestCase):
         self.assertTrue(found('bubbob/data'))
         self.assertFalse(found('bubbob/../secret'))
 
+    def test_downloaded_file_is_on_disk_when_frozen(self):
+        # a sound the client does not have: it is downloaded into the
+        # cache, and the sound driver then opens the file by name
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root)
+
+        class Chunk(caching.Data):
+            SOURCEDIR = root
+            CACHEDIR = os.path.join(root, 'cache')
+
+        data = b'RIFF' + bytes(range(256)) * 10
+        f = Chunk()
+        self.assertFalse(f.loadfrom('bubbob/ext1/wall.wav', 0, len(data),
+                                    md5(data).digest()))
+        f.store(0, data)
+        with open(f.freezefilename(), 'rb') as g:
+            self.assertEqual(g.read(), data)
+
 
 class Sizes(unittest.TestCase):
 

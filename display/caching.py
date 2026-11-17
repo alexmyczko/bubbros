@@ -60,6 +60,8 @@ class FileBlock:
         try:
             f = Data.Cache.access(self.filename, self.position, writing=1)
             f.write(newdata)
+            # the sound drivers open this file by name (freezefilename())
+            f.flush()
         except (IOError, OSError):
             print("cache write error:", self.filename, file=sys.stderr)
             return
