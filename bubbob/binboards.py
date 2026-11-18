@@ -33,7 +33,7 @@ def addshadow(img, xxx_todo_changeme, depth=8):
         for i in range(w):
             result[h+d][1+d+i] = color
         for i in range(h):
-            result[1+d+i][w+d] = color
+            result[d+i][w+d] = color
     return result
 
 def addrshadow(img, xxx_todo_changeme1, depth=8):
