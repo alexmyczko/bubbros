@@ -1307,6 +1307,7 @@ SERVER_SHUTDOWN = 0.0
 def mainloop():
   global game, SERVER_SHUTDOWN
   servertimeout = None
+  interrupted = False
   try:
     while serversockets:
       try:
@@ -1345,6 +1346,7 @@ def mainloop():
           raise SystemExit("No more server activity, timing out.")
       except KeyboardInterrupt:
         if game is None or not game.FnExcHandler(1):
+          interrupted = True
           raise
       except SystemExit:
         raise
@@ -1354,6 +1356,10 @@ def mainloop():
   finally:
     removesocket('LISTEN')
     removesocket('PING')
+    if interrupted:
+      # Ctrl-C: stop now, the clients see that the server is gone
+      for c in clients[:]:
+        c.disconnect('server stopped')
     if clients:
       print("Server crash -- waiting for clients to terminate...")
       while clients:

@@ -29,6 +29,7 @@ class BubBobGame(gamesrv.Game):
     FnDesc = "Bub & Bob"
     FnBasePath = "bubbob"
     Quiet = 0
+    Debug = 0       # --debug: Ctrl-C during a game opens pdb
     End = 0
 
     def __init__(self, levelfile,
@@ -123,8 +124,9 @@ class BubBobGame(gamesrv.Game):
         else:
             self.FnServerInfo('Ooops -- server crash!')
         from player import BubPlayer
-        if kbd and not [p for p in BubPlayer.PlayerList if p.isplaying()]:
-            return 0
+        if kbd and (not self.Debug or
+                    not [p for p in BubPlayer.PlayerList if p.isplaying()]):
+            return 0    # Ctrl-C stops the server, also during a game
         import traceback
         print("-"*60)
         traceback.print_exc()
@@ -239,6 +241,8 @@ def parse_cmdline(argv):
         print('  -M#  --monsters # multiply the number of monsters by #', file=sys.stderr)
         print('                      (default between 1.0 and 2.0 depending on # of players)', file=sys.stderr)
         print('  -i   --infinite   restart the server at the end of the game', file=sys.stderr)
+        print('       --debug      Ctrl-C during a game opens pdb, then restarts the board', file=sys.stderr)
+        print('                      (without it, Ctrl-C stops the server)', file=sys.stderr)
         print('  --port LISTEN=#   set fixed tcp port for game server', file=sys.stderr)
         print('  --port HTTP=#     set fixed tcp port for http server', file=sys.stderr)
         print('  -h   --help       display this text', file=sys.stderr)
@@ -255,7 +259,8 @@ def parse_cmdline(argv):
                             ['metaserver', 'start=', 'step=',
                              'lives=', 'monsters=', 'infinite', 'help',
                              'extralife=', 'limitlives=', 'final=',
-                             'saveurlto=', 'quiet', 'port=', 'makeimages'])
+                             'saveurlto=', 'quiet', 'debug', 'port=',
+                             'makeimages'])
     except error as e:
         print('bb.py: %s' % str(e), file=sys.stderr)
         print(file=sys.stderr)
@@ -293,6 +298,8 @@ def parse_cmdline(argv):
             save_url_to = value
         elif key == '--quiet':
             quiet = 1
+        elif key == '--debug':
+            BubBobGame.Debug = 1
         elif key == '--port':
             portname, portvalue = value.split('=')
             portvalue = int(portvalue)
@@ -342,7 +349,10 @@ setup()
 def main():
     parse_cmdline(sys.argv[1:])
     if not PROFILE:
-        gamesrv.mainloop()
+        try:
+            gamesrv.mainloop()
+        except KeyboardInterrupt:
+            sys.exit(130)       # Ctrl-C: no traceback
     else:
         import profile
         prof = profile.Profile()
