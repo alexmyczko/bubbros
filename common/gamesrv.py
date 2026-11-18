@@ -440,6 +440,7 @@ class Client:
     self.has_sound = 0
     self.has_music = 0
     self.musicpos = { }
+    self.musiclist = [0]
     self.proto = 1
     self.dyncompress = None
     addsocket('CLIENT', self.socket, self.input_handler)
@@ -503,7 +504,9 @@ class Client:
           if self.udpsockcounter < 1024:
             return
           self.force_ping_delay += 0.2
-        self.msgl.append(message(MSG_PING, self.udpsockcounter>>10))
+        # (the counter is sys.maxsize when the frames cannot be sent)
+        self.msgl.append(message(MSG_PING,
+                                 min(self.udpsockcounter>>10, 0x7FFFFFFF)))
         self.last_ping = NOW
 
   def setup_dyncompress(self):
@@ -763,11 +766,12 @@ then use the following address:
           msgl, self.musicpos[cde] = music_by_id[cde].initialsend(self)
           self.msgl += msgl
       if self.has_music > 1:
+        self.musiclist = currentmusics[:]
         self.sendmusicdata()
         self.msgl.append(message(MSG_PLAY_MUSIC, *currentmusics))
 
   def sendmusicdata(self):
-    for cde in currentmusics[1:]:
+    for cde in self.musiclist[1:]:
       if self.musicpos[cde] is not None:
         msgl, self.musicpos[cde] = music_by_id[cde].clientsend(self.musicpos[cde])
         self.msgl += msgl
@@ -914,6 +918,7 @@ def fadeout(time=1.0):
   for c in clients:
     if c.has_music > 1:
       c.msgl.append(msg)
+      c.musiclist = [0]
   currentmusics[:] = [0]
 
 
@@ -1078,15 +1083,15 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
     if HandlerClass is None:
       import javaserver
       from httpserver import MiniHandler as HandlerClass
-    # the control page is for this computer only (see httpserver.py)
-    import httpserver
-    httpserver.LOCAL_ONLY = True
-    server_address = ('127.0.0.1', port or 8000)
+    # The server listens on all interfaces: the web client of the game
+    # (the Java applet) is for everybody.  The control page is not: see
+    # httpserver.register().
+    server_address = ('', port or 8000)
     try:
       httpd = ServerClass(server_address, HandlerClass)
     except error:
       if port is None:
-        server_address = ('127.0.0.1', INADDR_ANY)
+        server_address = ('', INADDR_ANY)
         try:
           httpd = ServerClass(server_address, HandlerClass)
         except error as e:
@@ -1112,7 +1117,8 @@ def openbroadcastsocket(broadcastport=None):
     except error as e:
       print("Cannot broadcast", str(e), file=sys.stderr)
       return None
-    port = broadcastport or random.choice(BROADCAST_PORT_RANGE)
+    port = (broadcastport or PORTS.get('BROADCAST') or
+            random.choice(BROADCAST_PORT_RANGE))
     addsocket('BROADCAST', s, port=port)
   return s
 
@@ -1187,7 +1193,7 @@ class Game:
   def socketerrors(self, ewtd):
     for c in clients[:]:
       if c.socket in ewtd:
-        del ewtd[c.socket]
+        ewtd.remove(c.socket)
         c.disconnect("error", "select")
 
   def mainstep(self):
@@ -1307,6 +1313,7 @@ SERVER_SHUTDOWN = 0.0
 def mainloop():
   global game, SERVER_SHUTDOWN
   servertimeout = None
+  interrupted = False
   try:
     while serversockets:
       try:
@@ -1345,6 +1352,7 @@ def mainloop():
           raise SystemExit("No more server activity, timing out.")
       except KeyboardInterrupt:
         if game is None or not game.FnExcHandler(1):
+          interrupted = True
           raise
       except SystemExit:
         raise
@@ -1354,6 +1362,10 @@ def mainloop():
   finally:
     removesocket('LISTEN')
     removesocket('PING')
+    if interrupted:
+      # Ctrl-C: stop now, the clients see that the server is gone
+      for c in clients[:]:
+        c.disconnect('server stopped')
     if clients:
       print("Server crash -- waiting for clients to terminate...")
       while clients:

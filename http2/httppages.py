@@ -1,4 +1,4 @@
-import os, sys, random, secrets, re, ast
+import os, sys, random, re, ast
 from io import StringIO
 import socket, time
 
@@ -46,7 +46,7 @@ class PageServer:
     def __init__(self, Game):
         self.Game = Game
         # in every URL of the control page: not guessable
-        self.seed = '0x' + secrets.token_hex(8)
+        self.seed = '0x' + os.urandom(8).hex()
         #self.unique_actions = {}
         self.localhost = gamesrv.HOSTNAME
         self.filename = configfile.path(os.path.join(LOCALDIR, os.pardir))
@@ -296,8 +296,10 @@ class PageServer:
     def indexloader(self, headers, cheat=[], note=[], **options):
         if cheat:
             import builtins
-            for c in cheat:
-                getattr(builtins, '__cheat')(c)
+            fn = getattr(builtins, '__cheat', None)
+            if fn is not None:
+                for c in cheat:
+                    fn(c)
         else:
             self.localservers = None
         return self.mainpage(headers, juststarted=('juststarted' in options),

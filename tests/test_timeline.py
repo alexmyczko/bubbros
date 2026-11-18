@@ -90,6 +90,19 @@ class TestTimeline(unittest.TestCase):
         self.assertEqual(states[0], states[1])
         self.assertTrue(any(l.startswith('Re - Entering board') for l in lines))
 
+    def test_clock_releases_the_keys(self):
+        # A key held at the moment the game goes back to stays held if
+        # it was released since.  In this run, fire is held all the
+        # time (pressed again and again, hardly ever released).
+        lines = run('clock', 5, 600)
+        back = line_with(lines, 'BACK to pass')
+        saved = int(line_with(lines, 'CLOCK saved').split()[3].rstrip(','))
+        self.assertEqual(back, 'BACK to pass %d, keys 0:0,0,0,0 1:0,0,0,0'
+                               % saved)
+        # the keys work again afterwards
+        later = lines[lines.index(back):]
+        self.assertTrue(len(passes(later)) > 50)
+
     def test_big_clock(self):
         # the big clock replays the whole board with the ghosts of the
         # dragons of the first time

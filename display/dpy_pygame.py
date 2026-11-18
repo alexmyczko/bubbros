@@ -48,6 +48,8 @@ class Display:
         self.offscreen = pygame.Surface((width, height))
         #decorate the game window
         pygame.display.set_caption(title)
+        # held keys repeat, as in the other drivers: one per 0.77s
+        pygame.key.set_repeat(500, 770)
         #pygame.mouse.set_visible(0)
         self.tbcache = None, None
         self.events_key = []

@@ -1,4 +1,5 @@
 import sys, os
+from urllib.parse import urlencode
 from io import StringIO, BytesIO
 import httpserver
 
@@ -30,8 +31,6 @@ INDEX_PAGE = '''<html>
 
 NAME_LINE1 = '<param name="%s" value="%s">'
 NAME_SEP1  = '\n'
-NAME_LINE2 = '%s=%s'
-NAME_SEP2  = '&'
 
 def playernames(options):
     NUM_PLAYERS = len(PLAYERNAMES)
@@ -69,8 +68,11 @@ def indexloader(**options):
         cheats = options.pop('cheat')
         # a developer's tool: off unless asked for when starting the game
         if os.environ.get('BUBBROS_CHEATS') == '1':
-            for opt in cheats:
-                __cheat(opt)
+            import builtins
+            fn = getattr(builtins, '__cheat', None)
+            if fn is not None:
+                for opt in cheats:
+                    fn(opt)
     import gamesrv
     if gamesrv.game is None:
         indexdata = EMPTY_PAGE
@@ -81,8 +83,9 @@ def indexloader(**options):
             'width':    gamesrv.game.width,
             'height':   gamesrv.game.height,
             'gameport': gamesrv.game.address[1],
-            'names1':   NAME_SEP1.join([NAME_LINE1 % kv for kv in names]),
-            'names2':   NAME_SEP2.join([NAME_LINE2 % kv for kv in names]),
+            'names1':   NAME_SEP1.join([NAME_LINE1 % (k, httpserver.htmlquote(v))
+                                        for k, v in names]),
+            'names2':   httpserver.htmlquote(urlencode(names)),
             }
     return StringIO(indexdata), 'text/html'
 
@@ -178,6 +181,8 @@ def sampleloader(code=[], **options):
 
 
 def setup():
+    # The applet and its pages are public: served to the other computers
+    # too (see httpserver.register()).
     dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                        os.pardir,
                                        'java'))
@@ -187,21 +192,23 @@ def setup():
     # register all '.class' files
     for name in os.listdir(dir):
         if name.endswith('.class'):
-            httpserver.register(name, httpserver.fileloader(os.path.join(dir, name)))
+            httpserver.register(name,
+                                httpserver.fileloader(os.path.join(dir, name)),
+                                public=True)
 
     # register a '', an 'index.html', and a 'name.html' file
-    httpserver.register('', indexloader)
-    httpserver.register('index.html', indexloader)
-    httpserver.register('name.html',  nameloader)
+    httpserver.register('', indexloader, public=True)
+    httpserver.register('index.html', indexloader, public=True)
+    httpserver.register('name.html',  nameloader, public=True)
 
     # 'name.html' has a few images, list the .png files in DATADIR
     for fn in os.listdir(DATADIR):
         fn = fn.lower()
         if fn.endswith('.png'):
             httpserver.register(fn, httpserver.fileloader(
-                os.path.join(DATADIR, fn)))
+                os.path.join(DATADIR, fn)), public=True)
 
     # register the sample loader
-    httpserver.register('sample.wav', sampleloader)
+    httpserver.register('sample.wav', sampleloader, public=True)
 
 setup()
