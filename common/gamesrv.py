@@ -1112,7 +1112,8 @@ def openbroadcastsocket(broadcastport=None):
     except error as e:
       print("Cannot broadcast", str(e), file=sys.stderr)
       return None
-    port = broadcastport or random.choice(BROADCAST_PORT_RANGE)
+    port = (broadcastport or PORTS.get('BROADCAST') or
+            random.choice(BROADCAST_PORT_RANGE))
     addsocket('BROADCAST', s, port=port)
   return s
 
