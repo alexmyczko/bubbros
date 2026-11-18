@@ -113,7 +113,7 @@ def display(lines, timeleft, bgen=None, black=0):
 
         # draw the box filled with water
         original_y0 = y0
-        wallicon = boards.patget((boards.curboard.num, 0, 0), images.KEYCOL)
+        wallicon = boards.curboard.patget((0, 0), images.KEYCOL)
         if black:
             fillicon = images.sprget('gameoverbkgnd')
             waveicons = [wallicon]

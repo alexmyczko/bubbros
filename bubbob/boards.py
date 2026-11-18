@@ -21,6 +21,7 @@ class Board(Copyable):
     lightning = 0
     water     = 0
     top       = 0
+    patmap    = None
     
     WIND_DELTA = HALFCELL
 
@@ -69,6 +70,30 @@ class Board(Copyable):
             x, y, ico = xyicolist.pop()
             sprlist.append(gamesrv.Sprite(ico, x, y))
 
+    def ownpattern(self, key):
+        pm = self.patmap
+        if key in pm:
+            return pm[key]
+        if len(key) == 1:
+            return pm.get(key[0])       # 'l' or 'r'
+        return None
+
+    def haspat(self, key):
+        # key: (x, y) in the stamp, or ('l',) / ('r',) for the borders
+        if self.patmap is not None:
+            return self.ownpattern(key) is not None
+        return haspat((self.num,) + key)
+
+    def loadpattern(self, key, keycol=None):
+        if self.patmap is not None:
+            filename, rect = self.ownpattern(key)
+            return patternbitmap(filename, keycol), rect
+        return loadpattern((self.num,) + key, keycol)
+
+    def patget(self, key, keycol=None):
+        bitmap, rect = self.loadpattern(key, keycol)
+        return bitmap.geticon(*rect)
+
     def enter(self, complete=1, inplace=0, fastreenter=False):
         global curboard
         if inplace:
@@ -83,17 +108,17 @@ class Board(Copyable):
         else:
             deltay = bheight
         wnx = wny = 1
-        while haspat((self.num, wnx, 0)):
+        while self.haspat((wnx, 0)):
             wnx += 1
-        while haspat((self.num, 0, wny)):
+        while self.haspat((0, wny)):
             wny += 1
         self.wnx = wnx
         self.wny = wny
 
-        if haspat((self.num, 'l')):
-            lefticon = patget((self.num, 'l'))
-            if haspat((self.num, 'r')):
-                righticon = patget((self.num, 'r'))
+        if self.haspat(('l',)):
+            lefticon = self.patget(('l',))
+            if self.haspat(('r',)):
+                righticon = self.patget(('r',))
             else:
                 righticon = lefticon
             xrange = list(range(2, self.width-2))
@@ -112,8 +137,8 @@ class Board(Copyable):
                 x = 2*CELL+HALFCELL
                 xstep = 0
                 while x < xmax:
-                    bitmap, rect = loadpattern((self.num, xstep, ystep),
-                                               images.KEYCOL)
+                    bitmap, rect = self.loadpattern((xstep, ystep),
+                                                    images.KEYCOL)
                     bitmap, rect = images.makebkgndpattern(bitmap, rect)
                     if firstextra:
                         # special position where a bit of black might show up
@@ -139,14 +164,14 @@ class Board(Copyable):
             for x in xrange:
                 c = self.walls[y][x]
                 if c == '#':
-                    wallicon = patget((self.num, x%wnx, y%wny), images.KEYCOL)
+                    wallicon = self.patget((x%wnx, y%wny), images.KEYCOL)
                     w = gamesrv.Sprite(wallicon, x*CELL, y*CELL + deltay)
                     l.append(w)
                     self.walls_by_pos[y,x] = w
 
         if not l:
             # self.sprites['walls'] must not be empty, for putwall
-            wallicon = patget((self.num, 0, 0), images.KEYCOL)
+            wallicon = self.patget((0, 0), images.KEYCOL)
             w = gamesrv.Sprite(wallicon, 0, -wallicon.h)
             l.append(w)
 
@@ -226,7 +251,7 @@ class Board(Copyable):
         self.playingboard = 1
 
     def putwall(self, x, y, w=None):
-        wallicon = patget((self.num, x%self.wnx, y%self.wny), images.KEYCOL)
+        wallicon = self.patget((x%self.wnx, y%self.wny), images.KEYCOL)
         if w is None:
             w = gamesrv.Sprite(wallicon, 0, bheight)
             l = self.sprites['walls']
@@ -567,6 +592,31 @@ def wait_for_one_player():
 def patget(n, keycol=None):
     bitmap, rect = loadpattern(n, keycol)
     return bitmap.geticon(*rect)
+
+def patternfile(filename):
+    # a level set's own pattern files first, next to it, then the game's
+    leveldir = os.path.dirname(gamesrv.game.levelfile)
+    for path in (os.path.join(leveldir, filename),
+                 os.path.join('tmp', filename)):
+        if os.path.isfile(path):
+            return path
+    raise IOError("pattern file not found: %r" % (filename,))
+
+def patternbitmap(filename, keycol=None, cache={}):
+    path = patternfile(filename)
+    try:
+        rel = os.path.relpath(path)     # (we run in bubbob/)
+    except ValueError:                  # (another drive on Windows)
+        rel = None
+    if rel and not rel.startswith(os.pardir) and not os.path.isabs(rel):
+        # under the game's directory: a file the clients may have
+        return gamesrv.getbitmap(rel, keycol)
+    # elsewhere: the clients cannot know that path, send the data
+    path = os.path.abspath(path)
+    if path not in cache:
+        with open(path, 'rb') as f:
+            cache[path] = gamesrv.newbitmap(f.read(), keycol)
+    return cache[path]
 
 def get_lives():
     return gamesrv.game.limitlives
