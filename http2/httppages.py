@@ -1,4 +1,4 @@
-import os, sys, random, secrets, re, ast
+import os, sys, random, re, ast
 from io import StringIO
 import socket, time
 
@@ -46,7 +46,7 @@ class PageServer:
     def __init__(self, Game):
         self.Game = Game
         # in every URL of the control page: not guessable
-        self.seed = '0x' + secrets.token_hex(8)
+        self.seed = '0x' + os.urandom(8).hex()
         #self.unique_actions = {}
         self.localhost = gamesrv.HOSTNAME
         self.filename = configfile.path(os.path.join(LOCALDIR, os.pardir))

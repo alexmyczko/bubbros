@@ -11,12 +11,23 @@ Python 2 clients and servers can still play with the new ones.
 
 ## What you need
 
-- Python 3.
-- pygame, for the usual client display and sound.
+- Python 3.5+ (3.8+ for the tests).
+- On Linux and other systems: pygame, for the usual client display and
+  sound.  
+  On Debian or Ubuntu:
 
-On Debian or Ubuntu:
+      sudo apt install python3 python3-pygame
 
-    sudo apt install python3 python3-pygame
+- On Windows: no pygame needed. The client's own display and sound
+  driver is a C extension, built once with
+
+      cd display && python setup.py build_ext -i
+
+  This needs Microsoft Visual C++ 14.x: Visual Studio 2015 or later, or
+  the free Build Tools for Visual Studio, with the "Desktop development
+  with C++" workload. setuptools finds the compiler by itself, no
+  developer command prompt needed. With Python 3.12 or later, first
+  `pip install setuptools` (distutils is gone).
 
 Optional:
 
@@ -67,6 +78,8 @@ It needs these ports open: TCP and UDP 8055, TCP 8050. To run it as a
 service, see `metaserver/bubbros-metaserver.service`.
 
 ## Tests
+
+Python 3.8+:
 
     python3 -m unittest discover -s tests
 
