@@ -7,6 +7,7 @@ from hashlib import md5
 from time import time, ctime
 from msgstruct import *
 from errno import EWOULDBLOCK
+from transport import gettransport, BroadcastTransport
 
 
 SERVER_TIMEOUT = 7200   # 2 hours without any connection or port activity
@@ -425,11 +426,11 @@ class Client:
   SEND_BOUND_PER_FRAME = 0x6000   # bytes
   KEEP_ALIVE           = 2.2      # seconds
 
-  def __init__(self, socket, addr):
-    socket.setblocking(0)
-    self.socket = socket
+  def __init__(self, conn, addr):
+    # 'conn' is a Transport (see transport.py) or a connected socket
+    self.transport = gettransport(conn)
     self.addr = addr
-    self.udpsocket = None
+    self.sendframe = None     # sends one frame, returns the byte count
     self.udpsockcounter = 0
     self.initialdata = MSG_WELCOME
     self.initialized = 0
@@ -443,7 +444,7 @@ class Client:
     self.musiclist = [0]
     self.proto = 1
     self.dyncompress = None
-    addsocket('CLIENT', self.socket, self.input_handler)
+    addsocket('CLIENT', self.transport, self.input_handler)
     clients.append(self)
     self.log('connected')
     self.send_buffer(self.initialdata)
@@ -472,7 +473,7 @@ class Client:
       buffer = b''.join(self.msgl)
       if buffer:
         self.send_buffer(buffer)
-      if self.udpsocket is not None:
+      if self.sendframe is not None:
         if self.sounds:
           if broadcast_extras is None or self not in broadcast_clients:
             udpdata = b''.join(list(self.sounds.keys()) + [udpdata])
@@ -490,7 +491,7 @@ class Client:
             udpdatas = [udpdata]
           for udpdata in udpdatas:
             try:
-              self.udpsockcounter += self.udpsocket.send(udpdata)
+              self.udpsockcounter += self.sendframe(udpdata)
             except error as e:
               print('ignored:', str(e), file=sys.stderr)
               pass  # ignore UDP send errors (buffer full, etc.)
@@ -566,11 +567,11 @@ class Client:
         result.append(b''.join(data))
 
   def send_can_mix(self):
-    return not self.msgl and self.socket is not None
+    return not self.msgl and self.transport is not None
 
   def send_buffer(self, buffer):
     try:
-      count = self.socket.send(buffer[:self.SEND_BOUND_PER_FRAME])
+      count = self.transport.send_tcp(buffer[:self.SEND_BOUND_PER_FRAME])
     except error as e:
       if e.args[0] != EWOULDBLOCK:
         self.msgl = []
@@ -605,35 +606,35 @@ class Client:
     except struct.error:
       import traceback
       traceback.print_exc()
-      self.socket.send(b'\n\n<h1>Protocol Error</h1>\n')
-      hs = findsocket('HTTP')
-      if hs is not None:
-        url = 'http://%s:%s' % (HOSTNAME, displaysockport(hs))
-        self.socket.send(('''
+      try:
+        self.transport.send_tcp(b'\n\n<h1>Protocol Error</h1>\n')
+        hs = findsocket('HTTP')
+        if hs is not None:
+          url = 'http://%s:%s' % (HOSTNAME, displaysockport(hs))
+          self.transport.send_tcp(('''
 If you meant to point your web browser to this server,
 then use the following address:
 
 <a href="%s">%s</a>
 ''' % (url, url)).encode('utf-8'))
+      except error:
+        pass
       self.disconnect('protocol error', 'receive')
 
   def input_handler(self):
     try:
-      data = self.socket.recv(2048)
+      data = self.transport.recv_tcp(2048)
     except error as e:
       self.disconnect(e, "socket.recv")
     else:
       if data:
         self.activity = NOW
         self.receive(data)
-      elif not hasattr(self.socket, 'RECV_CAN_RETURN_EMPTY'):
-        # safecheck that this means disconnected
-        iwtd, owtd, ewtd = select([self.socket], [], [], 0.0)
-        if self.socket in iwtd:
-          self.disconnect('end of data', 'socket.recv')
+      elif self.transport.at_eof():
+        self.disconnect('end of data', 'socket.recv')
 
   def disconnect(self, err=None, infn=None):
-    removesocket('CLIENT', self.socket)
+    removesocket('CLIENT', self.transport)
     if err:
       extra = ": " + str(err)
     else:
@@ -649,11 +650,12 @@ then use the following address:
     except KeyError:
       pass
     clients.remove(self)
+    self.sendframe = None
     try:
-      self.socket.close()
+      self.transport.close()
     except:
       pass
-    self.socket = None
+    self.transport = None
     if not clients and game is not None:
       game.FnDisconnected()
 
@@ -712,36 +714,28 @@ then use the following address:
       if port == MSG_INLINE_FRAME or port == 0:
         # client requests data in-line on the TCP stream
         self.dyncompress = None
+        self.transport.close_udp()
         import udpovertcp
-        self.udpsocket = udpovertcp.SocketMarshaller(self.socket, self)
-        s = self.udpsocket.tcpsock
+        self.sendframe = udpovertcp.SocketMarshaller(self.transport, self).send
         self.log('set_udp_port: udp-over-tcp')
       else:
+        if isinstance(addr, bytes):
+          addr = addr.decode('ascii', 'replace')
+        addr = addr or self.addr[0]
         try:
-          if hasattr(self.socket, 'udp_over_udp_mixer'):
-            # for SocketOverUdp
-            self.udpsocket = self.socket.udp_over_udp_mixer()
-          else:
-            self.udpsocket = socket(AF_INET, SOCK_DGRAM)
-            self.udpsocket.setblocking(0)
-            if isinstance(addr, bytes):
-              addr = addr.decode('ascii', 'replace')
-            addr = addr or self.addr[0]
-            self.udpsocket.connect((addr, port))
+          self.transport.open_udp(addr, port)
         except error as e:
           print("Cannot set UDP socket to", addr, str(e), file=sys.stderr)
-          self.udpsocket = None
+          self.sendframe = None
           self.udpsockcounter = sys.maxsize
         else:
+          self.sendframe = self.transport.send_udp
           if self.proto >= 3:
             self.setup_dyncompress()
-        s = self.udpsocket
-        self.log('set_udp_port: %s:%d' % (addr, port))
-      if s:
-        try:
-          s.setsockopt(SOL_IP, IP_TOS, 0x10)  # IPTOS_LOWDELAY
-        except error as e:
-          print("Cannot set IPTOS_LOWDELAY:", str(e), file=sys.stderr)
+          else:
+            self.dyncompress = None
+        self.log('set_udp_port: %s %s:%d' % (self.transport.udp_kind,
+                                             addr, port))
 
   def enable_sound(self, sound_mode=1, *rest):
     if sound_mode != self.has_sound:
@@ -1111,14 +1105,13 @@ BROADCAST_DELAY_INCR = 2.7183
 def openbroadcastsocket(broadcastport=None):
   s = findsocket('BROADCAST')
   if s is None:
+    port = (broadcastport or PORTS.get('BROADCAST') or
+            random.choice(BROADCAST_PORT_RANGE))
     try:
-      s = socket(AF_INET, SOCK_DGRAM)
-      s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+      s = BroadcastTransport(port)
     except error as e:
       print("Cannot broadcast", str(e), file=sys.stderr)
       return None
-    port = (broadcastport or PORTS.get('BROADCAST') or
-            random.choice(BROADCAST_PORT_RANGE))
     addsocket('BROADCAST', s, port=port)
   return s
 
@@ -1192,8 +1185,8 @@ class Game:
 
   def socketerrors(self, ewtd):
     for c in clients[:]:
-      if c.socket in ewtd:
-        ewtd.remove(c.socket)
+      if c.transport in ewtd:
+        ewtd.remove(c.transport)
         c.disconnect("error", "select")
 
   def mainstep(self):
@@ -1215,8 +1208,7 @@ class Game:
         self.broadcast_next = None
       else:
         try:
-          self.broadcast_s.sendto(BROADCAST_MESSAGE,
-                                  ('<broadcast>', self.broadcast_port))
+          self.broadcast_s.send_udp(BROADCAST_MESSAGE)
           #print "Broadcast ping"
         except error:
           pass  # ignore failed broadcasts
@@ -1238,8 +1230,7 @@ class Game:
     if broadcast_extras is not None:
       udpdata = b''.join(list(broadcast_extras.keys()) + [udpdata])
       try:
-        self.broadcast_s.sendto(udpdata,
-                                ('<broadcast>', self.broadcast_port))
+        self.broadcast_s.send_udp(udpdata)
         #print "Broadcast UDP data"
       except error:
         pass  # ignore failed broadcasts
@@ -1377,15 +1368,15 @@ def mainloop():
         if not (iwtd or owtd or ewtd):
           break   # timeout - give up
         for c in clients[:]:
-          if c.socket in ewtd:
+          if c.transport in ewtd:
             c.disconnect("select reported an error")
-          elif c.socket in iwtd:
+          elif c.transport in iwtd:
             try:
-              data = c.socket.recv(2048)
+              data = c.transport.recv_tcp(2048)
             except error as e:
               c.disconnect(e)
             else:
-              if not data and not hasattr(c.socket, 'RECV_CAN_RETURN_EMPTY'):
+              if not data and c.transport.at_eof():
                 c.disconnect("end of data")
     print("Server closed.")
 

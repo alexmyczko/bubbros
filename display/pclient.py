@@ -8,6 +8,7 @@ import time
 from common.msgstruct import *
 from common.pixmap import decodepixmap, cliprect
 from common import hostchooser, configfile
+from common.transport import NativeTransport
 import modes
 from modes import KeyPressed, KeyReleased
 import caching
@@ -71,7 +72,7 @@ class DataChunk(caching.Data):
     def server_md5(self, playfield, filename, position, length, checksum):
         if not self.loadfrom(filename, position, length, checksum):
             self.pending.append((0, position))
-            playfield.s.sendall(message(CMSG_DATA_REQUEST, self.fileid,
+            playfield.transport.sendall_tcp(message(CMSG_DATA_REQUEST, self.fileid,
                                         position, length))
 
     def server_patch(self, position, data, lendata):
@@ -105,18 +106,14 @@ class Playfield:
     def __init__(self, s, sockaddr):
         self.s = s
         self.sockaddr = sockaddr
-        try:
-            self.s.setsockopt(SOL_IP, IP_TOS, 0x10)  # IPTOS_LOWDELAY
-        except error as e:
-            print("Cannot set IPTOS_LOWDELAY:", str(e), file=sys.stderr)
-        try:
-            self.s.setsockopt(SOL_TCP, TCP_NODELAY, 1)
-        except error as e:
-            print("Cannot set TCP_NODELAY:", str(e), file=sys.stderr)
+        # everything sent to the server goes through the transport layer
+        # (see common/transport.py); self.s is kept for select()
+        self.transport = NativeTransport(s, blocking=True)
+        self.transport.set_low_delay()
 
         initialbuf = b""
         while 1:
-            t = self.s.recv(200)
+            t = self.transport.recv_tcp(200)
             if not t and not hasattr(self.s, 'RECV_CAN_RETURN_EMPTY'):
                 raise error("connexion closed")
             initialbuf += t
@@ -139,7 +136,7 @@ class Playfield:
 ##                self.gameident, self.datapath = (self.gameident[:i].strip(),
 ##                                                 self.gameident[i+1:-1])
         print("connected to %r." % self.gameident)
-        self.s.sendall(message(CMSG_PROTO_VERSION, 3))
+        self.transport.sendall_tcp(message(CMSG_PROTO_VERSION, 3))
 
     def setup(self, mode, udp_over_tcp):
         self.playing = {}   # 0, 1, or 'l' for local
@@ -226,7 +223,7 @@ class Playfield:
             if self.dpy:
                 self.processkeys()
             if self.s in iwtd:
-                inputdata = self.s.recv(0x6000)
+                inputdata = self.transport.recv_tcp(0x6000)
                 self.tcpbytecounter += len(inputdata)
                 inbuf += inputdata
                 inbuf = self.process_inbuf(inbuf)
@@ -235,7 +232,7 @@ class Playfield:
                     udpdata1 = None
                     while self.udpsock in iwtd:
                         try:
-                            udpdata = self.udpsock.recv(65535)
+                            udpdata = self.transport.recv_udp(65535)
                         except error as e:
                             print(e, file=sys.stderr)
                             errors += 1
@@ -256,7 +253,7 @@ class Playfield:
                         self.udpbytecounter += len(udpdata)
                         if udpdata == BROADCAST_MESSAGE:
                             if not self.accepted_broadcast:
-                                self.s.sendall(message(CMSG_UDP_PORT, MSG_BROADCAST_PORT))
+                                self.transport.sendall_tcp(message(CMSG_UDP_PORT, MSG_BROADCAST_PORT))
                                 self.accepted_broadcast = 1
                                 #self.udpsock_low = None
                             udpdata = b''
@@ -527,15 +524,16 @@ class Playfield:
             port = MSG_INLINE_FRAME
         else:
             if '*udpsock*' in PORTS:
-                self.udpsock, (host, port) = PORTS['*udpsock*']
+                udpsock, (host, port) = PORTS['*udpsock*']
+                self.transport.bind_udp(sock=udpsock)
                 args = (host,)
             else:
-                self.udpsock = socket(AF_INET, SOCK_DGRAM)
-                self.udpsock.bind(('', PORTS.get('CLIENT', INADDR_ANY)))
-                host, port = self.udpsock.getsockname()
+                host, port = self.transport.bind_udp(
+                    PORTS.get('CLIENT', INADDR_ANY))
+            self.udpsock = self.transport.udpsock
             # Send a dummy UDP message to the server.  Some NATs will
             # then let through the UDP messages from the server.
-            self.udpsock.sendto(b'.', self.s.getpeername())
+            self.transport.send_udp(b'.')
             self.iwtd.append(self.udpsock)
             self.initial_iwtd.append(self.udpsock)
         if 'sendudpto' in PORTS:
@@ -548,7 +546,7 @@ class Playfield:
         if self.snd and self.snd.has_music:
             outbound.append(message(CMSG_ENABLE_MUSIC, 1))
             outbound.append(message(CMSG_PING))
-        self.s.sendall(b''.join(outbound))
+        self.transport.sendall_tcp(b''.join(outbound))
 
     def start_udp_over_tcp(self):
         self.pending_udp_data = b''
@@ -567,6 +565,7 @@ class Playfield:
                     pass
                 sock.close()
                 setattr(self, name, None)
+        self.transport.close_udp()
 
     def udp_over_udp_decoder(self, udpdata):
         if len(udpdata) > 3 and 0x80 <= udpdata[0] < 0x90:
@@ -588,7 +587,7 @@ class Playfield:
                         now - self.last_key_event[1] < 0.77):
                         continue   # don't send too much events for auto-repeat
                     self.last_key_event = code, now
-                    self.s.sendall(code[1])
+                    self.transport.sendall_tcp(code[1])
                 elif self.keydefinition:
                     self.define_key(keysym)
         pointermotion = self.dpy.pointermotion()
@@ -603,7 +602,7 @@ class Playfield:
                 clic_id = self.clic_taskbar(clic)
                 if clic_id is not None:
                     if self.playing.get(clic_id) == 'l':
-                        self.s.sendall(message(CMSG_REMOVE_PLAYER, clic_id))
+                        self.transport.sendall_tcp(message(CMSG_REMOVE_PLAYER, clic_id))
                     else:
                         self.keydefinition = clic_id, {}
         if self.taskbartimeout is not None and time.time() > self.taskbartimeout:
@@ -628,7 +627,7 @@ class Playfield:
         if self.nextkeyname() is not None:
             return
         self.keydefinition = None
-        self.s.sendall(message(CMSG_ADD_PLAYER, clic_id))
+        self.transport.sendall_tcp(message(CMSG_ADD_PLAYER, clic_id))
         for keyname, (num, icons) in list(self.keys.items()):
             if keyname[:1] == '-':
                 event = KeyReleased
@@ -702,11 +701,11 @@ class Playfield:
         self.dpy = modes.open_dpy(self.screenmode, width, height, self.gameident)
         self.snd = self.snd or modes.open_snd(self.screenmode)
         if self.snd:
-            self.s.sendall(message(CMSG_ENABLE_SOUND))
+            self.transport.sendall_tcp(message(CMSG_ENABLE_SOUND))
         self.iwtd = self.dpy.selectlist() + self.initial_iwtd
         self.dpy.clear()   # backcolor is ignored
         self.painttimes = (time.time(), 0)
-        self.s.sendall(message(CMSG_PING))
+        self.transport.sendall_tcp(message(CMSG_PING))
         self.taskbarmode = 0
         self.taskbarfree = 0
         self.taskbartimeout = None
@@ -820,10 +819,10 @@ class Playfield:
                                 namemsg = namemsg + message(
                                     CMSG_PLAYER_NAME, id, d[keyid].encode('utf-8'))
                         if namemsg:
-                            self.s.sendall(namemsg)
+                            self.transport.sendall_tcp(namemsg)
 
     def msg_ping(self, *rest):
-        self.s.sendall(message(CMSG_PONG, *rest))
+        self.transport.sendall_tcp(message(CMSG_PONG, *rest))
         self.checkcfgfile()
         if rest and self.udpsock_low is not None:
             udpkbytes = rest[0]
@@ -840,7 +839,7 @@ class Playfield:
                     inp = self.udpbytecounter / (udpkbytes*1024.0)
                     print("(%d%% packet loss)" % int(100*(1.0-inp)))
                     self.start_udp_over_tcp()
-                    self.s.sendall(message(CMSG_UDP_PORT, MSG_INLINE_FRAME))
+                    self.transport.sendall_tcp(message(CMSG_UDP_PORT, MSG_INLINE_FRAME))
             else:
                 # enough packets received
                 self.udpsock_low = 0
@@ -851,7 +850,7 @@ class Playfield:
             self.initlevel = 1
         elif self.initlevel == 1:
             if self.snd and self.snd.has_music:
-                self.s.sendall(message(CMSG_ENABLE_MUSIC, 2))
+                self.transport.sendall_tcp(message(CMSG_ENABLE_MUSIC, 2))
             self.initlevel = 2
         if not self.taskbarfree and not self.taskbarmode:
             self.taskbarfree = 1

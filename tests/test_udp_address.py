@@ -10,6 +10,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'common'), os.path.join(ROOT, 'display')]
 
 from common import msgstruct
+from common.transport import NativeTransport
 import pclient
 
 
@@ -35,6 +36,7 @@ class UdpAddress(unittest.TestCase):
         self.addCleanup(msgstruct.PORTS.pop, '*udpsock*')
         pf = pclient.Playfield.__new__(pclient.Playfield)
         pf.s = FakeTCP(server.getsockname())
+        pf.transport = NativeTransport(pf.s, blocking=True)
         pf.snd = None
         pf.pending_udp_data = None
         pf.iwtd, pf.initial_iwtd = [], []
