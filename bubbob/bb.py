@@ -193,7 +193,7 @@ class BubBobGame(gamesrv.Game):
                 self.metastatus = 'listed'
             else:
                 self.metastatus = 'unreachable'
-            print('.')
+            #print('.')
         else:
             try:
                 import metaclient

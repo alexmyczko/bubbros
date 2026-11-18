@@ -157,6 +157,21 @@ class JavaApplet(SavedPages):
                      'sample.wav'):
             self.assertTrue(httpserver.is_public(path), path)
 
+    def test_player_names_are_quoted(self):
+        import gamesrv, types
+        javaserver = self.load_javaserver()
+        saved = gamesrv.game
+        self.addCleanup(setattr, gamesrv, 'game', saved)
+        gamesrv.game = types.SimpleNamespace(FnDesc='Bub & Bob', width=1,
+                                             height=1, address=('', 1))
+        name = '"><script>x</script>'
+        for loader in (javaserver.indexloader, javaserver.nameloader):
+            f, ctype = loader(player0=[name], player1=['a b&c'])
+            page = ''.join(iter(f.read, ''))
+            self.assertNotIn('<script>', page)
+            self.assertIn('value="&quot;&gt;&lt;script&gt;', page)
+        f, ctype = javaserver.indexloader(player1=['a b&c'])
+        self.assertIn('name.html?player1=a+b%26c"', f.read())
 
 
 if __name__ == '__main__':

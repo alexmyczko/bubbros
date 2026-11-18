@@ -839,14 +839,16 @@ class Cactus(RandomBonus):
         count = 0
         while count < self.multiply:
             args = ()
+            cls = None
             if self.extra_cheat_arg:
-                cls = globals()[self.extra_cheat_arg]
+                cls = bonusclass(self.extra_cheat_arg)
                 self.extra_cheat_arg = None
-            elif bigclockticker and bigclockticker.state == 'pre':
-                cls = Clock
-                args = (1,)
-            else:
-                cls = random.choice(Classes)
+            if cls is None:
+                if bigclockticker and bigclockticker.state == 'pre':
+                    cls = Clock
+                    args = (1,)
+                else:
+                    cls = random.choice(Classes)
             if makecactusbonus(cls, *args):
                 count += 1
         cactusbonussound()
@@ -1032,6 +1034,7 @@ class Potion(RandomBonus):
         if s.startswith('ext') and os.path.isdir(os.path.join(LocalDir, s)):
             Extensions.append(s)
     del s
+    AllExtensions = frozenset(Extensions)
     random.shuffle(Extensions)
     extra_cheat_arg = None
     big = 0
@@ -1043,8 +1046,9 @@ class Potion(RandomBonus):
             p_extension = 2       # make extensions rare in the bonus level
         else:
             p_extension = 5
-        if self.extra_cheat_arg:
+        if self.extra_cheat_arg and self.extra_cheat_arg in Potion.AllExtensions:
             Potion.Extensions.append(self.extra_cheat_arg)
+            self.extra_cheat_arg = None
             p_normal = 0
         if not Potion.Extensions:
             p_extension = 0
@@ -2450,11 +2454,17 @@ def end_normal_play():
     if bigclockticker and bigclockticker.state == 'post':
         bigclockticker.flush_ghosts()
 
+def bonusclass(name):
+    cls = globals().get(name)
+    if isinstance(cls, type) and issubclass(cls, Bonus):
+        return cls
+    return None
+
 # hack hack hack!
 def __cheat(c):
     c = c.split(',')
-    cls = globals().get(c[0])
-    if not (isinstance(cls, type) and issubclass(cls, Bonus)):
+    cls = bonusclass(c[0])
+    if cls is None:
         return       # not a bonus (and assert is gone with python3 -O)
     c[0] = cls
     Cheat.append(tuple(c))

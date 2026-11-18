@@ -1,4 +1,5 @@
 import sys, os
+from urllib.parse import urlencode
 from io import StringIO, BytesIO
 import httpserver
 
@@ -30,8 +31,6 @@ INDEX_PAGE = '''<html>
 
 NAME_LINE1 = '<param name="%s" value="%s">'
 NAME_SEP1  = '\n'
-NAME_LINE2 = '%s=%s'
-NAME_SEP2  = '&'
 
 def playernames(options):
     NUM_PLAYERS = len(PLAYERNAMES)
@@ -69,8 +68,11 @@ def indexloader(**options):
         cheats = options.pop('cheat')
         # a developer's tool: off unless asked for when starting the game
         if os.environ.get('BUBBROS_CHEATS') == '1':
-            for opt in cheats:
-                __cheat(opt)
+            import builtins
+            fn = getattr(builtins, '__cheat', None)
+            if fn is not None:
+                for opt in cheats:
+                    fn(opt)
     import gamesrv
     if gamesrv.game is None:
         indexdata = EMPTY_PAGE
@@ -81,8 +83,9 @@ def indexloader(**options):
             'width':    gamesrv.game.width,
             'height':   gamesrv.game.height,
             'gameport': gamesrv.game.address[1],
-            'names1':   NAME_SEP1.join([NAME_LINE1 % kv for kv in names]),
-            'names2':   NAME_SEP2.join([NAME_LINE2 % kv for kv in names]),
+            'names1':   NAME_SEP1.join([NAME_LINE1 % (k, httpserver.htmlquote(v))
+                                        for k, v in names]),
+            'names2':   httpserver.htmlquote(urlencode(names)),
             }
     return StringIO(indexdata), 'text/html'
 

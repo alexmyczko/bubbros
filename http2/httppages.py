@@ -296,8 +296,10 @@ class PageServer:
     def indexloader(self, headers, cheat=[], note=[], **options):
         if cheat:
             import builtins
-            for c in cheat:
-                getattr(builtins, '__cheat')(c)
+            fn = getattr(builtins, '__cheat', None)
+            if fn is not None:
+                for c in cheat:
+                    fn(c)
         else:
             self.localservers = None
         return self.mainpage(headers, juststarted=('juststarted' in options),
