@@ -178,6 +178,8 @@ def sampleloader(code=[], **options):
 
 
 def setup():
+    # The applet and its pages are public: served to the other computers
+    # too (see httpserver.register()).
     dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                        os.pardir,
                                        'java'))
@@ -187,21 +189,23 @@ def setup():
     # register all '.class' files
     for name in os.listdir(dir):
         if name.endswith('.class'):
-            httpserver.register(name, httpserver.fileloader(os.path.join(dir, name)))
+            httpserver.register(name,
+                                httpserver.fileloader(os.path.join(dir, name)),
+                                public=True)
 
     # register a '', an 'index.html', and a 'name.html' file
-    httpserver.register('', indexloader)
-    httpserver.register('index.html', indexloader)
-    httpserver.register('name.html',  nameloader)
+    httpserver.register('', indexloader, public=True)
+    httpserver.register('index.html', indexloader, public=True)
+    httpserver.register('name.html',  nameloader, public=True)
 
     # 'name.html' has a few images, list the .png files in DATADIR
     for fn in os.listdir(DATADIR):
         fn = fn.lower()
         if fn.endswith('.png'):
             httpserver.register(fn, httpserver.fileloader(
-                os.path.join(DATADIR, fn)))
+                os.path.join(DATADIR, fn)), public=True)
 
     # register the sample loader
-    httpserver.register('sample.wav', sampleloader)
+    httpserver.register('sample.wav', sampleloader, public=True)
 
 setup()

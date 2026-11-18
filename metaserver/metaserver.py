@@ -355,12 +355,13 @@ def icoloader(key, **options):
     iconformat = txtfilter(totext(srv.serverinfo['iconformat']), 32)
     return BytesIO(srv.serverinfo['icon']), 'image/' + iconformat
 
-httpserver.register('', indexloader)
-httpserver.register('index.html', indexloader)
-httpserver.register('bub-n-bros.html', indexloader)
-httpserver.register('ico', icoloader)
-httpserver.register('mbub.png', httpserver.fileloader(os.path.join(HERE, 'mbub.png'), 'image/png'))
-httpserver.register('home.png', httpserver.fileloader(os.path.join(HERE, 'home.png'), 'image/png'))
+# the pages of the meta-server are for everybody
+httpserver.register('', indexloader, public=True)
+httpserver.register('index.html', indexloader, public=True)
+httpserver.register('bub-n-bros.html', indexloader, public=True)
+httpserver.register('ico', icoloader, public=True)
+httpserver.register('mbub.png', httpserver.fileloader(os.path.join(HERE, 'mbub.png'), 'image/png'), public=True)
+httpserver.register('home.png', httpserver.fileloader(os.path.join(HERE, 'home.png'), 'image/png'), public=True)
 
 def openhttpsocket(port = META_SERVER_HTTP_PORT):
     from http.server import HTTPServer

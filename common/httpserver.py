@@ -69,14 +69,25 @@ def htmlquote(s):
 # HTTP Request Handler
 
 pathloaders = {}
+publicpaths = {}
 
 def canonicalpath(url):
     if url.startswith('/'):
         url = url[1:]
     return url.lower()
 
-def register(url, loader):
-    pathloaders[canonicalpath(url)] = loader
+def register(url, loader, public=False):
+    # A page is served to this computer only, unless it is registered
+    # as 'public': then it is served to everybody.  See MiniHandler.
+    url = canonicalpath(url)
+    pathloaders[url] = loader
+    if public:
+        publicpaths[url] = True
+    else:
+        publicpaths.pop(url, None)
+
+def is_public(url):
+    return canonicalpath(url) in publicpaths
 
 def is_registered(url):
     return canonicalpath(url) in pathloaders
@@ -104,11 +115,12 @@ def fileloader(filename, mimetype=None):
 class HTTPRequestError(Exception):
     pass
 
-# The game's own pages (the control page) are only for the player at this
-# computer: gamesrv sets this, the public meta-server does not.  A web
-# page from elsewhere, open in the same browser, could otherwise send
-# requests to them, even read the answers with DNS rebinding.
-LOCAL_ONLY = False
+# Who may see a page is decided when it is registered, see register().
+# The control page of the game is only for the player at this computer:
+# a web page from elsewhere, open in the same browser, could otherwise
+# send requests to it, even read the answers with DNS rebinding.  The
+# web client of the game (the Java applet) and the pages of the
+# meta-server are public.
 LOCAL_HOSTS = ('127.0.0.1', 'localhost', '[::1]')
 
 def is_local_request(client_address, headers):
@@ -127,12 +139,18 @@ class MiniHandler(SimpleHTTPRequestHandler):
     timeout = 10
 
     def send_head(self, query=''):
-        if LOCAL_ONLY and not is_local_request(self.client_address,
-                                               self.headers):
-            self.send_error(403, "This page is only for this computer")
-            return None
         addr, host, path, query1, fragment = urllib.parse.urlsplit(self.path)
         path = canonicalpath(path)
+        local = is_local_request(self.client_address, self.headers)
+        if not local:
+            # For the others, everything that is not public is
+            # forbidden, whether there is such a page or not: the
+            # answer does not tell which local pages exist.
+            if path not in publicpaths:
+                if path + '/' in publicpaths:
+                    return self.redirect(path + '/')
+                self.send_error(403)
+                return None
         if path not in pathloaders:
             if path + '/' in pathloaders:
                 return self.redirect(path + '/')
@@ -154,6 +172,10 @@ class MiniHandler(SimpleHTTPRequestHandler):
             # value is always ours.
             del hdr['X-Remote-Host']
             hdr['X-Remote-Host'] = self.client_address[0]
+            # for the public pages: does the request come from this
+            # computer?  (also ours, same as above)
+            del hdr['X-Local-Request']
+            hdr['X-Local-Request'] = local and 'yes' or 'no'
             f, ctype = loader(headers=hdr, **kwds)
         except IOError as e:
             self.send_error(404, "I/O error: " + str(e))

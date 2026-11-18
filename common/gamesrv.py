@@ -1078,15 +1078,15 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
     if HandlerClass is None:
       import javaserver
       from httpserver import MiniHandler as HandlerClass
-    # the control page is for this computer only (see httpserver.py)
-    import httpserver
-    httpserver.LOCAL_ONLY = True
-    server_address = ('127.0.0.1', port or 8000)
+    # The server listens on all interfaces: the web client of the game
+    # (the Java applet) is for everybody.  The control page is not: see
+    # httpserver.register().
+    server_address = ('', port or 8000)
     try:
       httpd = ServerClass(server_address, HandlerClass)
     except error:
       if port is None:
-        server_address = ('127.0.0.1', INADDR_ANY)
+        server_address = ('', INADDR_ANY)
         try:
           httpd = ServerClass(server_address, HandlerClass)
         except error as e:
