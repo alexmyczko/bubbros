@@ -440,6 +440,7 @@ class Client:
     self.has_sound = 0
     self.has_music = 0
     self.musicpos = { }
+    self.musiclist = [0]
     self.proto = 1
     self.dyncompress = None
     addsocket('CLIENT', self.socket, self.input_handler)
@@ -765,11 +766,12 @@ then use the following address:
           msgl, self.musicpos[cde] = music_by_id[cde].initialsend(self)
           self.msgl += msgl
       if self.has_music > 1:
+        self.musiclist = currentmusics[:]
         self.sendmusicdata()
         self.msgl.append(message(MSG_PLAY_MUSIC, *currentmusics))
 
   def sendmusicdata(self):
-    for cde in currentmusics[1:]:
+    for cde in self.musiclist[1:]:
       if self.musicpos[cde] is not None:
         msgl, self.musicpos[cde] = music_by_id[cde].clientsend(self.musicpos[cde])
         self.msgl += msgl
@@ -916,6 +918,7 @@ def fadeout(time=1.0):
   for c in clients:
     if c.has_music > 1:
       c.msgl.append(msg)
+      c.musiclist = [0]
   currentmusics[:] = [0]
 
 
