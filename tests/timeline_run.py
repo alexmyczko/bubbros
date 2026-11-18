@@ -85,8 +85,17 @@ def digest():
 
 # log the state at the end of every pass
 _run_pass = boards.run_pass
+last_pass = [0]
 def logged_run_pass():
     if not timeline.replaying:
+        if timeline.passes < last_pass[0]:
+            # the game went back in time: the keys held at that moment
+            print('BACK to pass %d, keys %s' % (timeline.passes, ' '.join(
+                ['%d:%d,%d,%d,%d' % (p.pn, p.key_left, p.key_right,
+                                     p.key_jump, p.key_fire)
+                 for p in sorted(BubPlayer.PlayerList, key=lambda p: p.pn)
+                 if p.isplaying()])))
+        last_pass[0] = timeline.passes
         # inputs arrive before a given pass, whatever the grouping of
         # passes into frames (which differs after a rewind)
         for pn, name in inputs_before(timeline.passes + 1):

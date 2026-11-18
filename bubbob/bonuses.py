@@ -1822,6 +1822,13 @@ class Clock(RandomBonus):
         for s in images.ActiveSprites:
             if isinstance(s, Clock) and s.savedpass == savedpass:
                 s.savedpass = None
+        # The keys are back as they were at that moment too.  A key
+        # that was held then and released since would stay held: its
+        # release is in the future that was just forgotten.  So no key
+        # is held now; the players press again.
+        for p in BubPlayer.PlayerList:
+            if p.isplaying():
+                p.kReleaseAll()
         scoreboard()
         yield 2.5
 

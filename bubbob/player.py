@@ -911,6 +911,14 @@ class BubPlayer(gamesrv.Player):
     def kmFire(self):
         self.key_fire = (self.key_fire == 1000000)
 
+    @timeline.recorded
+    def kReleaseAll(self):
+        # no key is held any more (see the Time Machine in bonuses.py)
+        self.key_left  = 0
+        self.key_right = 0
+        self.key_jump  = 0
+        self.key_fire  = 0
+
     def bubberdie(self):
         self.stats['die'] += 1
         if self.lives is not None and self.lives > 0:
