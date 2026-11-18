@@ -292,13 +292,17 @@ def make_darker(ico, is_dragon, bmpcache={}):
         bmpcache[bmp, is_dragon] = darkbmp
     return darkbmp.geticon(*rect)
 
+def patkey(n):
+    # boards 100, 200... have the patterns of boards 0, 1...
+    if n not in patmap:
+        n = (n[0] % 100,) + n[1:]
+    return n
+
 def haspat(n):
-    return n in patmap
+    return patkey(n) in patmap
 
 def loadpattern(n, keycol=None):
-    if not haspat(n):
-        n = (n[0] % 100,) + n[1:]
-    filename, rect = patmap[n]
+    filename, rect = patmap[patkey(n)]
     filename = os.path.join('tmp', filename)
     bitmap = gamesrv.getbitmap(filename, keycol)
     return bitmap, rect
