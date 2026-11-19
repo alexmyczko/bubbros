@@ -27,7 +27,20 @@ typedef struct {
   PyObject* keyevents;
   PyObject* mouseevents;
   PyObject* motionevent;
+  int vx, vy, vw, vh;     /* where the playfield is drawn in the window */
+  int clearbars;          /* paint the black bars around it */
+  int fullscreen;
+  WINDOWPLACEMENT wp;     /* the window before going full screen */
+  HMENU winmenu;          /* the "Window" submenu */
+  WPARAM swallowkeyup;    /* the key that toggled full screen */
 } DisplayObject;
+
+/* the "Window" submenu of the system menu; the 4 low bits of these IDs
+   are used by Windows itself */
+#define IDM_SCALE1      0x0010    /* .. IDM_SCALE1 + 3*IDM_SCALESTEP: 4x */
+#define IDM_SCALESTEP   0x0010
+#define IDM_FULLSCREEN  0x0050
+#define WINDOW_STYLE    WS_OVERLAPPEDWINDOW
 
 #define DisplayObject_Check(v)	(Py_TYPE(v) == &Display_Type)
 static PyTypeObject Display_Type;
@@ -68,31 +81,265 @@ static void display_close(DisplayObject* self)
     }
 }
 
+static void update_view(DisplayObject* self)
+{
+  /* scale the playfield to the window, keeping its proportions,
+     centered, black bars around it */
+  RECT rc;
+  int cw, ch, tw, th;
+  if (!GetClientRect(self->win, &rc))
+    return;
+  cw = rc.right;
+  ch = rc.bottom;
+  if (cw * self->height <= ch * self->width)
+    {
+      tw = cw;
+      th = (int) ((long long) self->height * cw / self->width);
+    }
+  else
+    {
+      th = ch;
+      tw = (int) ((long long) self->width * ch / self->height);
+    }
+  self->vx = (cw - tw) / 2;
+  self->vy = (ch - th) / 2;
+  self->vw = tw;
+  self->vh = th;
+  self->clearbars = 1;
+}
+
+static int paint_screen(DisplayObject* self)
+{
+  HDC dc = self->dc;
+  int r;
+  if (self->vw <= 0 || self->vh <= 0)
+    return 1;       /* minimized */
+  if (self->hpal)
+    RealizePalette(dc);
+  if (self->clearbars)
+    {
+      RECT rc, bar;
+      HBRUSH black = (HBRUSH) GetStockObject(BLACK_BRUSH);
+      GetClientRect(self->win, &rc);
+      SetRect(&bar, 0, 0, rc.right, self->vy);
+      FillRect(dc, &bar, black);
+      SetRect(&bar, 0, self->vy + self->vh, rc.right, rc.bottom);
+      FillRect(dc, &bar, black);
+      SetRect(&bar, 0, self->vy, self->vx, self->vy + self->vh);
+      FillRect(dc, &bar, black);
+      SetRect(&bar, self->vx + self->vw, self->vy, rc.right, self->vy + self->vh);
+      FillRect(dc, &bar, black);
+      self->clearbars = 0;
+    }
+  if (self->vw == self->width && self->vh == self->height)
+    r = SetDIBitsToDevice(dc, self->vx, self->vy, self->width, self->height,
+                          0, 0, 0, self->height, self->screenbmpdata,
+                          (BITMAPINFO*)(&self->screenbmpinfo), DIB_PAL_COLORS);
+  else
+    {
+      /* exact multiples (the 1x..4x sizes): sharp pixels; else smooth */
+      if (self->vw % self->width == 0 &&
+          self->vw / self->width * self->height == self->vh)
+        SetStretchBltMode(dc, COLORONCOLOR);
+      else
+        {
+          SetStretchBltMode(dc, HALFTONE);
+          SetBrushOrgEx(dc, 0, 0, NULL);
+        }
+      r = StretchDIBits(dc, self->vx, self->vy, self->vw, self->vh,
+                        0, 0, self->width, self->height, self->screenbmpdata,
+                        (BITMAPINFO*)(&self->screenbmpinfo), DIB_PAL_COLORS,
+                        SRCCOPY);
+    }
+  return r != 0;
+}
+
+static void set_fullscreen(DisplayObject* self, int on)
+{
+  HWND hwnd = self->win;
+  DWORD style = GetWindowLong(hwnd, GWL_STYLE);
+  if (on && !self->fullscreen)
+    {
+      MONITORINFO mi;
+      mi.cbSize = sizeof(mi);
+      self->wp.length = sizeof(self->wp);
+      if (!GetWindowPlacement(hwnd, &self->wp) ||
+          !GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+        return;
+      if (self->wp.showCmd != SW_SHOWMAXIMIZED)
+        self->wp.showCmd = SW_SHOWNORMAL;   /* not hidden (--fullscreen) */
+      SetWindowLong(hwnd, GWL_STYLE, (style & ~WINDOW_STYLE) | WS_POPUP);
+      SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                   mi.rcMonitor.right - mi.rcMonitor.left,
+                   mi.rcMonitor.bottom - mi.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+      self->fullscreen = 1;
+    }
+  else if (!on && self->fullscreen)
+    {
+      SetWindowLong(hwnd, GWL_STYLE, (style & ~WS_POPUP) | WINDOW_STYLE);
+      SetWindowPlacement(hwnd, &self->wp);
+      SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+      self->fullscreen = 0;
+    }
+  update_view(self);
+}
+
+static void set_scale(DisplayObject* self, int n)
+{
+  RECT wr;
+  set_fullscreen(self, 0);
+  if (IsZoomed(self->win) || IsIconic(self->win))
+    ShowWindow(self->win, SW_RESTORE);
+  SetRect(&wr, 0, 0, self->width * n, self->height * n);
+  AdjustWindowRectEx(&wr, (DWORD) GetWindowLong(self->win, GWL_STYLE), FALSE, 0);
+  SetWindowPos(self->win, NULL, 0, 0, wr.right - wr.left, wr.bottom - wr.top,
+               SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+  update_view(self);
+}
+
+static void update_winmenu(DisplayObject* self)
+{
+  RECT rc;
+  int n;
+  int zoomed = IsZoomed(self->win);
+  GetClientRect(self->win, &rc);
+  for (n = 1; n <= 4; n++)
+    {
+      UINT id = IDM_SCALE1 + (n-1) * IDM_SCALESTEP;
+      int checked = !self->fullscreen && !zoomed &&
+                    rc.right == self->width * n && rc.bottom == self->height * n;
+      CheckMenuItem(self->winmenu, id, checked ? MF_CHECKED : MF_UNCHECKED);
+    }
+  CheckMenuItem(self->winmenu, IDM_FULLSCREEN,
+                self->fullscreen ? MF_CHECKED : MF_UNCHECKED);
+}
+
+static int window_command(DisplayObject* self, WPARAM cmd)
+{
+  cmd &= 0xFFF0;
+  if (cmd >= IDM_SCALE1 && cmd <= IDM_SCALE1 + 3 * IDM_SCALESTEP)
+    set_scale(self, (int) ((cmd - IDM_SCALE1) / IDM_SCALESTEP) + 1);
+  else if (cmd == IDM_FULLSCREEN)
+    set_fullscreen(self, !self->fullscreen);
+  else
+    return 0;
+  return 1;
+}
+
+static void add_key_event(DisplayObject* self, WPARAM key, int etype)
+{
+  PyObject* v;
+  if (self->keyevents == NULL)
+    {
+      self->keyevents = PyList_New(0);
+      if (self->keyevents == NULL)
+        return;
+    }
+  v = Py_BuildValue("ii", (int) key, etype);
+  if (v == NULL)
+    return;
+  PyList_Append(self->keyevents, v);
+  Py_DECREF(v);
+}
+
+static int playfield_xy(DisplayObject* self, LPARAM lParam, int* x, int* y)
+{
+  /* window coordinates to playfield coordinates; 0 in the black bars */
+  int wx = (short) LOWORD(lParam) - self->vx;
+  int wy = (short) HIWORD(lParam) - self->vy;
+  if (wx < 0 || wy < 0 || wx >= self->vw || wy >= self->vh)
+    return 0;
+  *x = (int) ((long long) wx * self->width / self->vw);
+  *y = (int) ((long long) wy * self->height / self->vh);
+  return 1;
+}
+
+#define KEY_REPEATED(lParam)   ((lParam) & (1 << 30))
+#define ALT_DOWN(lParam)       ((lParam) & (1 << 29))
+
 static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
                                      WPARAM wParam, LPARAM lParam)
 {
   DisplayObject* self;
   switch (uMsg) {
 
+  case WM_SIZE:
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self)
+      update_view(self);
+    break;
+
+  case WM_ERASEBKGND:
+    return 1;       /* paint_screen() paints everything */
+
+  case WM_PAINT:
+    {
+      PAINTSTRUCT ps;
+      BeginPaint(hwnd, &ps);
+      EndPaint(hwnd, &ps);
+      self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+      if (self && self->dc)
+        {
+          self->clearbars = 1;
+          paint_screen(self);
+        }
+    }
+    break;
+
+  case WM_SYSKEYDOWN:
+    /* Alt+Enter: full screen */
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self && wParam == VK_RETURN && ALT_DOWN(lParam))
+      {
+        if (!KEY_REPEATED(lParam))
+          set_fullscreen(self, !self->fullscreen);
+        break;
+      }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
+  case WM_SYSCOMMAND:
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self && window_command(self, wParam))
+      break;
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
+  case WM_INITMENUPOPUP:
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self && (HMENU) wParam == self->winmenu)
+      update_winmenu(self);
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
   case WM_KEYDOWN:
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self)
+      {
+        /* F11, or Esc in full screen: toggle full screen, not a game key */
+        if (wParam == VK_F11 || (wParam == VK_ESCAPE && self->fullscreen))
+          {
+            if (!KEY_REPEATED(lParam))
+              {
+                set_fullscreen(self, !self->fullscreen);
+                self->swallowkeyup = wParam;
+              }
+            break;
+          }
+        add_key_event(self, wParam, 2);
+      }
+    break;
+
   case WM_KEYUP:
     self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
-        PyObject* v;
-        int etype;
-        if (self->keyevents == NULL)
+        if (wParam == self->swallowkeyup)
           {
-            self->keyevents = PyList_New(0);
-            if (self->keyevents == NULL)
-              break;
+            self->swallowkeyup = 0;
+            break;
           }
-        etype = (uMsg == WM_KEYDOWN) ? 2 : 3;
-        v = Py_BuildValue("ii", (int) wParam, etype);
-        if (v == NULL)
-          break;
-        PyList_Append(self->keyevents, v);
-        Py_DECREF(v);
+        add_key_event(self, wParam, 3);
       }
     break;
 
@@ -101,13 +348,16 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
     if (self)
       {
         PyObject* v;
+        int x, y;
         if (self->mouseevents == NULL)
           {
             self->mouseevents = PyList_New(0);
             if (self->mouseevents == NULL)
               break;
           }
-        v = Py_BuildValue("ii", LOWORD(lParam), HIWORD(lParam));
+        if (!playfield_xy(self, lParam, &x, &y))
+          break;
+        v = Py_BuildValue("ii", x, y);
         if (v == NULL)
           break;
         PyList_Append(self->mouseevents, v);
@@ -119,8 +369,11 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
     self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
       {
+        int x, y;
+        if (!playfield_xy(self, lParam, &x, &y))
+          break;
         Py_XDECREF(self->motionevent);
-        self->motionevent = Py_BuildValue("ii", LOWORD(lParam), HIWORD(lParam));
+        self->motionevent = Py_BuildValue("ii", x, y);
       }
     break;
 
@@ -145,8 +398,8 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
   char* CLASSNAME = "winxshm";
   WNDCLASS wcls;
   DisplayObject* self;
-  int width, height, bytes, bpp, use_shm=0;
-  if (!PyArg_ParseTuple(args, "ii|i", &width, &height, &use_shm))
+  int width, height, bytes, bpp, fullscreen=0;
+  if (!PyArg_ParseTuple(args, "ii|i", &width, &height, &fullscreen))
     return NULL;
 
   self = PyObject_New(DisplayObject, &Display_Type);
@@ -164,12 +417,13 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
   wcls.cbWndExtra = sizeof(DisplayObject*);
   //wcls.hInstance = HINSTANCE;
   wcls.hCursor = LoadCursor(0, IDC_ARROW);
+  wcls.hbrBackground = (HBRUSH) GetStockObject(BLACK_BRUSH);
   wcls.lpszClassName = CLASSNAME;
   RegisterClass(&wcls);
 
   /* Create the window */
   {
-    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    DWORD style = WINDOW_STYLE;
     RECT rc = {0, 0, width, height}, wr;
     AdjustWindowRectEx(&rc, style, FALSE, 0);
     self->win = CreateWindowEx(0, CLASSNAME, NULL, style,
@@ -184,9 +438,30 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
                    wr.right - wr.left + width - rc.right,
                    wr.bottom - wr.top + height - rc.bottom,
                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-    ShowWindow(self->win, SW_SHOW);
   }
   SetWindowLongPtr(self->win, 0, (LONG_PTR) self);
+
+  /* the "Window" submenu of the system menu (right click on the title
+     bar) */
+  {
+    HMENU sysmenu = GetSystemMenu(self->win, FALSE);
+    self->winmenu = CreatePopupMenu();
+    if (sysmenu && self->winmenu)
+      {
+        AppendMenu(self->winmenu, MF_STRING, IDM_SCALE1, "&1x");
+        AppendMenu(self->winmenu, MF_STRING, IDM_SCALE1 + IDM_SCALESTEP, "&2x");
+        AppendMenu(self->winmenu, MF_STRING, IDM_SCALE1 + 2*IDM_SCALESTEP, "&3x");
+        AppendMenu(self->winmenu, MF_STRING, IDM_SCALE1 + 3*IDM_SCALESTEP, "&4x");
+        AppendMenu(self->winmenu, MF_SEPARATOR, 0, NULL);
+        AppendMenu(self->winmenu, MF_STRING, IDM_FULLSCREEN, "&Fullscreen\tF11");
+        AppendMenu(sysmenu, MF_SEPARATOR, 0, NULL);
+        AppendMenu(sysmenu, MF_POPUP, (UINT_PTR) self->winmenu, "&Window");
+      }
+  }
+  update_view(self);
+  if (fullscreen)
+    set_fullscreen(self, 1);
+  ShowWindow(self->win, SW_SHOW);
 
   /* Create DC */
   self->dc = GetDC(self->win);
@@ -231,6 +506,7 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
 	PyErr_NoMemory();
 	goto err2;
   }
+  memset(self->screenbmpdata, 0, bytes);   /* black until the first flip() */
   self->screenbmpinfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
   self->screenbmpinfo.bmiHeader.biWidth = self->width;
   self->screenbmpinfo.bmiHeader.biHeight = self->height;
@@ -597,15 +873,10 @@ static PyObject* display_flip1(DisplayObject* self, PyObject* args)
   if (!checkopen(self))
     return NULL;
 
-  if (self->hpal)
-	  RealizePalette(self->dc);
-
-  r = SetDIBitsToDevice(self->dc, 0, 0, self->width, self->height, 0, 0,
-	  0, self->height, self->screenbmpdata, (BITMAPINFO*)(&self->screenbmpinfo),
-	  DIB_PAL_COLORS);
+  r = paint_screen(self);
   if (!r)
   {
-	  PyErr_SetString(PyExc_IOError, "SetDIBitsToDevice failed");
+	  PyErr_SetString(PyExc_IOError, "cannot draw the screen");
 	  return NULL;
   }
 

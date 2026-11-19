@@ -6,8 +6,9 @@ from io import StringIO
 
 class Display(BaseDisplay):
     
-    def __init__(self, width, height, title):
-        self.xdpy = xdpy = wingame.Display(width, height)
+    def __init__(self, width, height, title, fullscreen='no'):
+        self.xdpy = xdpy = wingame.Display(width, height,
+                                           fullscreen.startswith('y'))
         xdpy.settitle(title)
         self.pixmap = xdpy.pixmap
         self.getppm = xdpy.getppm
@@ -21,3 +22,10 @@ class Display(BaseDisplay):
 
     def selectlist(self):
         return []
+
+
+def htmloptionstext(nameval):
+    return '''
+<%s> Full Screen (Esc key to exit)</input><%s><br>
+''' % (nameval("checkbox", "fullscreen", "yes", default="no"),
+       nameval("hidden", "fullscreen", "no"))
