@@ -205,6 +205,79 @@ class UdpConnectAttempt(unittest.TestCase):
         self.attempt(5.0)
 
 
+class Introduction(unittest.TestCase):
+    """The meta-server introduces a client to a server for a UDP
+    connection: each side gets the other's address as seen from outside."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'metaserver_intro', os.path.join(ROOT, 'metaserver', 'metaserver.py'))
+        ms_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ms_module)
+        cls.port, cls.udpport = free_port(), free_port(socket.SOCK_DGRAM)
+        ms_module.metaserver = ms_module.MetaServer(cls.port, cls.udpport)
+        threading.Thread(target=ms_module.mainloop, daemon=True).start()
+
+    def connect(self):
+        s = socket.create_connection(('127.0.0.1', self.port), 5)
+        self.addCleanup(s.close)
+        return s
+
+    def udp(self):
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        u.bind(('127.0.0.1', 0))
+        u.settimeout(5)
+        self.addCleanup(u.close)
+        return u
+
+    def read(self, s):
+        # the next message from 's'; what comes after it stays for later
+        if not hasattr(self, 'buffers'):
+            self.buffers = {}
+        data = self.buffers.get(s, b'')
+        while True:
+            msg, rest = decodemessage(data)
+            if msg is not None:
+                self.buffers[s] = rest
+                return msg
+            data += s.recv(4096)
+
+    def test_introduction(self):
+        from metaserver.metastruct import MMSG_PUNCH, RMSG_PUNCH, \
+            RMSG_PUNCH_PROBE
+        server, gameport = self.connect(), self.udp()
+        server.sendall(message(MMSG_INFO, encodedict({'desc': b'x'})) +
+                       message(MMSG_START, 23456))
+        time.sleep(0.3)
+        serverkey = server.getsockname()[0].encode() + b':23456'
+        client, clientudp = self.connect(), self.udp()
+        clientudp.sendto(b'0xpattern', ('127.0.0.1', self.udpport))
+        time.sleep(0.2)
+        client.sendall(message(MMSG_PUNCH, serverkey, b'0xpattern', 1234))
+        probe = self.read(server)
+        self.assertEqual(probe[0], RMSG_PUNCH_PROBE)
+        nonce, udpport = probe[1], probe[2]
+        self.assertEqual(udpport, self.udpport)
+        gameport.sendto(nonce, ('127.0.0.1', udpport))
+        to_client = self.read(client)
+        to_server = self.read(server)
+        self.assertEqual(to_client, (RMSG_PUNCH, serverkey, b'127.0.0.1',
+                                     gameport.getsockname()[1]))
+        self.assertEqual(to_server[0], RMSG_PUNCH)
+        self.assertEqual(to_server[2:], (b'127.0.0.1',
+                                         clientudp.getsockname()[1], 1234))
+
+    def test_unknown_server(self):
+        from metaserver.metastruct import MMSG_PUNCH, RMSG_PUNCH
+        client, clientudp = self.connect(), self.udp()
+        clientudp.sendto(b'0xother', ('127.0.0.1', self.udpport))
+        time.sleep(0.2)
+        client.sendall(message(MMSG_PUNCH, b'1.2.3.4:5', b'0xother', 1))
+        self.assertEqual(self.read(client), (RMSG_PUNCH, b'1.2.3.4:5'))
+
+
 class Page(unittest.TestCase):
     """What the web interface shows, without starting a game server."""
 

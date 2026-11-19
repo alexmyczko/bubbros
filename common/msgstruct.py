@@ -54,6 +54,8 @@ BROADCAST_MESSAGE = b"game!"   # less than 6 bytes
 # stream.  A server only sends them to a client of protocol 4 or later:
 # an older one would take them for frames.
 DMSG_TOKEN        = b"t"   # token: from the client, see MSG_UDP_TOKEN
+DMSG_PUNCH        = b"p"   # opens the sender's NAT for a UDP connection
+                           # (see RMSG_PUNCH); nothing to do with it
 
 
 def message(tp, *values):

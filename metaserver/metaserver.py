@@ -56,8 +56,11 @@ class MetaServer:
         serversockets[s] = self.clientconnect, sys.exit
         self.udpsock = socket(AF_INET, SOCK_DGRAM)
         self.udpsock.bind(('', udpport))
+        self.udpport = self.udpsock.getsockname()[1]
         serversockets[self.udpsock] = self.udp_message, None
         self.udpdata = []
+        self.punches = {}       # {nonce: (client, client addr, secret,
+                                #          server, time)}
 
     def detach(self):
         pid = os.fork()
@@ -124,6 +127,25 @@ class MetaServer:
         self.udpdata.append((data, addr))
         if len(self.udpdata) > 50:
             del self.udpdata[0]
+        if data in self.punches:
+            self.introduce(self.punches.pop(data), addr)
+
+    def introduce(self, punch, serveraddr):
+        # the server's game port, as seen from here: give each side the
+        # other's address, and both send to the other
+        client, clientaddr, secret, server, t = punch
+        host, port = clientaddr
+        server.sendmsg(message(RMSG_PUNCH, client.key.encode('utf-8'),
+                               host.encode('ascii'), port, secret))
+        host, port = serveraddr
+        client.sendmsg(message(RMSG_PUNCH, server.serverkey.encode('utf-8'),
+                               host.encode('ascii'), port))
+
+    def forget_old_punches(self):
+        limit = time.time() - 10.0
+        for nonce, punch in list(self.punches.items()):
+            if punch[-1] < limit:
+                del self.punches[nonce]
 
 
 class Connexion(MessageSocket):
@@ -221,6 +243,33 @@ class Connexion(MessageSocket):
             print(tb[:MAX_TRACEBACK_SIZE].decode('utf-8', 'replace'), file=f)
             f.close()
 
+    def sendmsg(self, data):
+        try:
+            self.s.sendall(data)
+        except error:
+            drop(self.s, self.disconnect)
+
+    def msg_punch(self, serverkey, pattern, secret, *rest):
+        # a client asks to be introduced to a server, for a UDP connection
+        # through their NATs: we know the client's UDP address from its
+        # 'pattern'; the server sends us a 'nonce' from its game port
+        key = serverkey.decode('utf-8', 'replace')
+        try:
+            server = metaserver.getserver(key)
+        except KeyError:
+            self.sendmsg(message(RMSG_PUNCH, serverkey))
+            return
+        for data, addr in reversed(metaserver.udpdata):
+            if data == pattern:
+                break
+        else:
+            self.sendmsg(message(RMSG_PUNCH, serverkey))
+            return
+        metaserver.forget_old_punches()
+        nonce = b'!' + os.urandom(12)
+        metaserver.punches[nonce] = (self, addr, secret, server, time.time())
+        server.sendmsg(message(RMSG_PUNCH_PROBE, nonce, metaserver.udpport))
+
     def msg_udp_addr(self, pattern, *rest):
         for data, addr in metaserver.udpdata:
             if data == pattern:
@@ -242,6 +291,7 @@ class Connexion(MessageSocket):
         MMSG_ROUTE: msg_route,
         MMSG_TRACEBACK: msg_traceback,
         MMSG_UDP_ADDR:  msg_udp_addr,
+        MMSG_PUNCH:     msg_punch,
         }
 
 
