@@ -30,9 +30,10 @@ MSG_INLINE_FRAME  = b"\\"
 MSG_PATCH_FILE    = MSG_DEF_MUSIC
 MSG_ZPATCH_FILE   = b"P"
 MSG_MD5_FILE      = b"M"
+MSG_UDP_TOKEN     = b"u"   # port, token: send DMSG_TOKEN to this port
 MSG_RECORDED      = b"\x00"
 
-CMSG_PROTO_VERSION= b"v"
+CMSG_PROTO_VERSION= b"v"   # 4: understands MSG_UDP_TOKEN
 CMSG_KEY          = b"k"
 CMSG_ADD_PLAYER   = b"+"
 CMSG_REMOVE_PLAYER= b"-"
@@ -45,6 +46,14 @@ CMSG_DATA_REQUEST = b"M"
 CMSG_PLAYER_NAME  = b"n"
 
 BROADCAST_MESSAGE = b"game!"   # less than 6 bytes
+
+# Control datagrams, over UDP: b'.' followed by messages (message()),
+# with their own type codes.  A bare b'.' only opens the sender's NAT
+# (a client sends it if the server gave it no token).  Types and fields
+# that a program does not know are ignored, as for the messages of the
+# stream.  A server only sends them to a client of protocol 4 or later:
+# an older one would take them for frames.
+DMSG_TOKEN        = b"t"   # token: from the client, see MSG_UDP_TOKEN
 
 
 def message(tp, *values):
@@ -64,6 +73,24 @@ def message(tp, *values):
     assert len(typecodes) < 256
     return pack(("!B%dsc" % len(typecodes)) + typecodes.decode('ascii'),
                 len(typecodes), typecodes, tp, *values)
+
+def datagram(*messages):
+    return b'.' + b''.join(messages)
+
+def decodedatagram(data):
+    """The messages of a control datagram, as far as they can be read
+    (it may come from anybody)."""
+    result = []
+    data = data[1:]
+    try:
+        while data:
+            values, data = decodemessage(data)
+            if values is None:
+                break
+            result.append(values)
+    except Exception:
+        pass
+    return result
 
 def decodemessage(data):
     if data:

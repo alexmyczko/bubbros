@@ -45,5 +45,34 @@ class UdpAddress(unittest.TestCase):
         self.assertEqual(pf.s.sent, msg)
 
 
+    def test_token_goes_to_the_game_port(self):
+        # a server that sent MSG_UDP_TOKEN: the client sends b'.'+token
+        # to the UDP port it said, not to the stream's port
+        server = socket(AF_INET, SOCK_DGRAM)
+        server.bind(('127.0.0.1', 0))
+        self.addCleanup(server.close)
+        pf = pclient.Playfield.__new__(pclient.Playfield)
+        pf.s = FakeTCP(('127.0.0.1', 1))        # the stream's port: not there
+        pf.transport = NativeTransport(pf.s, blocking=True)
+        self.addCleanup(pf.transport.close_udp)
+        pf.snd = None
+        pf.pending_udp_data = None
+        pf.iwtd, pf.initial_iwtd = [], []
+        pf.udpbytecounter = 0
+        pf.animdelay = 0.5
+        pf.msg_udp_token(server.getsockname()[1], b'tokn')
+        pf.startplaying()
+        server.settimeout(2)
+        self.assertEqual(server.recvfrom(100)[0], msgstruct.datagram(
+            msgstruct.message(msgstruct.DMSG_TOKEN, b'tokn')))
+
+
+    def test_unknown_control_datagram_is_ignored(self):
+        pf = pclient.Playfield.__new__(pclient.Playfield)
+        seen = []
+        pf.update_sprites = seen.append
+        pf.udp_control(msgstruct.datagram(msgstruct.message(b'?', 1)))
+        self.assertEqual(seen, [])
+
 if __name__ == '__main__':
     unittest.main()

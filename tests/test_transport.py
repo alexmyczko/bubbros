@@ -166,6 +166,64 @@ class Endpoint(unittest.TestCase):
             self.assertEqual(iwtd, [client.udpsock], 'frame %d filtered' % i)
             self.assertEqual(client.recv_udp(65535), b'frame%d' % i)
 
+    def test_frames_go_where_the_datagrams_come_from(self):
+        # a NAT that changes the port: the client says one port, but its
+        # datagrams come from another, where the replies get through
+        for learn_first in (True, False):
+            client, server = self.connect()
+            host, port = client.bind_udp()
+            wrong = port + 1 if port < 65535 else port - 1
+            if learn_first:
+                server.learn_udp_peer(('127.0.0.1', port))
+                server.open_udp('127.0.0.1', wrong)
+            else:
+                server.open_udp('127.0.0.1', wrong)
+                server.learn_udp_peer(('127.0.0.1', port))
+            server.send_udp(b'frame')
+            iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
+            self.assertEqual(client.recv_udp(65535), b'frame')
+
+    def test_udp_datagram(self):
+        # gamesrv.udp_datagram(): which client a datagram is from
+        class C:
+            def __init__(self, transport, token=None):
+                self.transport, self.udp_token = transport, token
+            def log(self, text):
+                pass
+        saved = gamesrv.clients[:], dict(gamesrv.udp_tokens)
+        def restore():
+            gamesrv.clients[:] = saved[0]
+            gamesrv.udp_tokens.clear()
+            gamesrv.udp_tokens.update(saved[1])
+        self.addCleanup(restore)
+        new = C(self.connect()[1], b'tokn')
+        old1, old2 = C(self.connect()[1]), C(self.connect()[1])
+        gamesrv.clients[:] = [new, old1]
+        gamesrv.udp_tokens.clear()
+        gamesrv.udp_tokens[b'tokn'] = new
+        def token(t, *extra):
+            return datagram(message(DMSG_TOKEN, t, *extra))
+        gamesrv.udp_datagram(token(b'tokn'), ('127.0.0.1', 5000))
+        self.assertEqual(new.transport.learned_udppeer, ('127.0.0.1', 5000))
+        for data in (token(b'xxxx'),            # an unknown token
+                     b'.\xff\x00garbage',       # not readable
+                     b'\x01reserved',           # not a control datagram
+                     datagram(message(b'?', 1))):    # an unknown type
+            gamesrv.udp_datagram(data, ('127.0.0.1', 5001))
+        self.assertEqual(new.transport.learned_udppeer, ('127.0.0.1', 5000))
+        # more fields, or an unknown message before it: still understood
+        gamesrv.udp_datagram(datagram(message(b'?', b'future'),
+                                      message(DMSG_TOKEN, b'tokn', 7)),
+                             ('127.0.0.1', 5002))
+        self.assertEqual(new.transport.learned_udppeer, ('127.0.0.1', 5002))
+        # an older client sends b'.': only if it is alone at this address
+        gamesrv.udp_datagram(b'.', ('127.0.0.1', 6000))
+        self.assertEqual(old1.transport.learned_udppeer, ('127.0.0.1', 6000))
+        gamesrv.clients.append(old2)
+        gamesrv.udp_datagram(b'.', ('127.0.0.1', 6001))
+        self.assertEqual(old1.transport.learned_udppeer, ('127.0.0.1', 6000))
+        self.assertIsNone(old2.transport.learned_udppeer)
+
     def test_closing_a_client_keeps_the_endpoint(self):
         client, server = self.connect()
         host, port = client.bind_udp()

@@ -114,6 +114,7 @@ class NativeTransport(Transport):
         self.udpsock = None
         self.udppeer = None     # for an unconnected UDP socket
         self.endpoint = endpoint    # server side: the game's UdpEndpoint
+        self.learned_udppeer = None # where the client's datagrams come from
         if not blocking:
             sock.setblocking(0)
 
@@ -157,7 +158,8 @@ class NativeTransport(Transport):
             self.udp_kind = 'udp-over-udp'
         elif self.endpoint is not None:
             self.udpsock = self.endpoint
-            self.udppeer = (host or self.getpeername()[0], port)
+            self.udppeer = (self.learned_udppeer or
+                            (host or self.getpeername()[0], port))
             self.udp_kind = 'udp'
             return
         else:
@@ -175,10 +177,19 @@ class NativeTransport(Transport):
         except (error, AttributeError) as e:
             print("Cannot set IPTOS_LOWDELAY:", str(e))
 
-    def bind_udp(self, port=0, sock=None):
+    def learn_udp_peer(self, addr):
+        """Server side: the client's datagrams come from 'addr', which
+        is where its NAT lets in the replies: send the frames there,
+        whatever port the client said."""
+        self.learned_udppeer = addr
+        if self.endpoint is not None and self.udpsock is self.endpoint:
+            self.udppeer = addr
+
+    def bind_udp(self, port=0, sock=None, peer=None):
         """Client side: a UDP socket that receives the frames, either
         'sock' or a new one bound to 'port'.  send_udp() then sends to
-        the server.  Return the address of the socket."""
+        the server, at 'peer' or else at its stream's address.  Return
+        the address of the socket."""
         self.close_udp()
         if sock is None:
             sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
@@ -192,7 +203,7 @@ class NativeTransport(Transport):
         # which shares 'sock', or an error report on Windows)
         sock.setblocking(0)
         self.udpsock = sock
-        self.udppeer = self.getpeername()
+        self.udppeer = peer or self.getpeername()
         self.udp_kind = 'udp'
         return sock.getsockname()
 

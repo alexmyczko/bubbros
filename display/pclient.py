@@ -102,6 +102,8 @@ class DataChunk(caching.Data):
 
 class Playfield:
     TASKBAR_HEIGHT = 48
+    udp_token = None            # (port, token) from MSG_UDP_TOKEN
+    udp_punch_next = udp_punch_until = 0.0
     
     def __init__(self, s, sockaddr):
         self.s = s
@@ -136,7 +138,7 @@ class Playfield:
 ##                self.gameident, self.datapath = (self.gameident[:i].strip(),
 ##                                                 self.gameident[i+1:-1])
         print("connected to %r." % self.gameident)
-        self.transport.sendall_tcp(message(CMSG_PROTO_VERSION, 3))
+        self.transport.sendall_tcp(message(CMSG_PROTO_VERSION, 4))
 
     def setup(self, mode, udp_over_tcp):
         self.playing = {}   # 0, 1, or 'l' for local
@@ -218,6 +220,8 @@ class Playfield:
                 self.processkeys()
             iwtd, owtd, ewtd = select(self.iwtd, [], [], self.animdelay)
             self.animdelay = 0.5
+            if self.udp_token:
+                self.udp_punch()
             if self.raise_requested and self.dpy:
                 self.raise_window()
             if self.dpy:
@@ -241,6 +245,11 @@ class Playfield:
                             if errors > 10:
                                 raise
                             break
+                        if udpdata[:1] == b'.':
+                            # a control datagram, not a frame
+                            self.udp_control(udpdata)
+                            iwtd, owtd, ewtd = select(self.iwtd, [], [], 0)
+                            continue
                         self.udpbytecounter += len(udpdata)
                         if len(udpdata) > 3 and 0x80 <= udpdata[0] < 0x90:
                             udpdata = self.dynamic_decompress(udpdata)
@@ -525,17 +534,25 @@ class Playfield:
         elif self.pending_udp_data is not None:
             port = MSG_INLINE_FRAME
         else:
+            peer = None
+            if self.udp_token:
+                peer = self.transport.getpeername()[0], self.udp_token[0]
             if '*udpsock*' in PORTS:
                 udpsock, (host, port) = PORTS['*udpsock*']
-                self.transport.bind_udp(sock=udpsock)
+                self.transport.bind_udp(sock=udpsock, peer=peer)
                 args = (host,)
             else:
                 host, port = self.transport.bind_udp(
-                    PORTS.get('CLIENT', INADDR_ANY))
+                    PORTS.get('CLIENT', INADDR_ANY), peer=peer)
             self.udpsock = self.transport.udpsock
-            # Send a dummy UDP message to the server.  Some NATs will
-            # then let through the UDP messages from the server.
-            self.transport.send_udp(b'.')
+            # Send a datagram to the server: our NAT then lets in what
+            # comes from there.  A server that gave us a token learns
+            # from where it came, and sends the frames there.
+            if self.udp_token:
+                self.udp_punch_until = time.time() + 5.0
+                self.udp_punch()
+            else:
+                self.transport.send_udp(b'.')
             self.iwtd.append(self.udpsock)
             self.initial_iwtd.append(self.udpsock)
         if 'sendudpto' in PORTS:
@@ -549,6 +566,36 @@ class Playfield:
             outbound.append(message(CMSG_ENABLE_MUSIC, 1))
             outbound.append(message(CMSG_PING))
         self.transport.sendall_tcp(b''.join(outbound))
+
+    def udp_punch(self):
+        # several times a second until the first frame comes (a datagram
+        # can be lost), then now and then: some NATs forget the way in
+        # if nothing goes out
+        t = time.time()
+        if self.udpsock is None or t < self.udp_punch_next:
+            return
+        try:
+            self.transport.send_udp(datagram(message(DMSG_TOKEN,
+                                                     self.udp_token[1])))
+        except error:
+            pass
+        if t < self.udp_punch_until and not self.udpbytecounter:
+            self.udp_punch_next = t + 0.25
+            self.animdelay = min(self.animdelay, 0.25)
+        else:
+            self.udp_punch_next = t + 15.0
+
+    def msg_udp_token(self, port, token, *rest):
+        self.udp_token = port, token
+
+    def udp_control(self, data):
+        # none known yet: the types this client does not know are ignored
+        for values in decodedatagram(data):
+            fn = self.UDP_MESSAGES.get(values[0])
+            if fn is not None:
+                fn(self, *values[1:])
+
+    UDP_MESSAGES = {}
 
     def start_udp_over_tcp(self):
         self.pending_udp_data = b''
@@ -883,6 +930,7 @@ class Playfield:
         MSG_PATCH_FILE   : msg_patch_file,
         MSG_ZPATCH_FILE  : msg_zpatch_file,
         MSG_MD5_FILE     : msg_md5_file,
+        MSG_UDP_TOKEN    : msg_udp_token,
 ##        MSG_LOAD_PREFIX  : msg_load_prefix,
         }
 
