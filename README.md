@@ -18,16 +18,21 @@ Python 2 clients and servers can still play with the new ones.
 
       sudo apt install python3 python3-pygame
 
-- On Windows: no pygame needed. The client's own display and sound
-  driver is a C extension, built once with
+  For non-managed Python installations, via pip:
+
+      python3 -m pip install pygame
+
+- On Windows: pygame, as above (via pip). Altenatively, you can use a
+  native Windows display and sound driver in form of a C extension,
+  built once with
 
       cd display && python setup.py build_ext -i
 
-  This needs Microsoft Visual C++ 14.x: Visual Studio 2015 or later, or
-  the free Build Tools for Visual Studio, with the "Desktop development
-  with C++" workload. setuptools finds the compiler by itself, no
-  developer command prompt needed. With Python 3.12 or later, first
-  `pip install setuptools` (distutils is gone).
+  To build the extension you need Microsoft Visual C++ 14.x: Visual
+  Studio 2015 or later, or the free Build Tools for Visual Studio, with
+  the "Desktop development with C++" workload. setuptools finds the
+  compiler by itself, no developer command prompt needed. With Python
+  3.12 or later, first `pip install setuptools` (distutils is gone).
 
 Optional:
 

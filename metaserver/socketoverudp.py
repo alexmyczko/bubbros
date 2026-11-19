@@ -2,6 +2,7 @@ from time import time as now
 from pipelayer import PipeLayer, InvalidPacket
 from pipelayer import FLAG_RANGE_START, FLAG_RANGE_STOP
 import socket, struct
+from select import select
 
 SOU_RANGE_START = FLAG_RANGE_START
 SOU_MIXED_DATA  = FLAG_RANGE_STOP + 0
@@ -11,6 +12,7 @@ SOU_RANGE_STOP  = FLAG_RANGE_STOP + 2
 SHUTDOWN_PACKET = bytes([SOU_SHUTDOWN]) + b'**'    #  < 4 characters
 
 CONGESTION_TIMEOUT = 20.0
+SILENCE_TIMEOUT = 20.0     # nothing at all received from the peer
 #CONSOLIDATE_DELAY  = 0.1
 
 
@@ -23,6 +25,7 @@ class SocketOverUdp(object):
         self.udpsock = udpsock
         self.pl = PipeLayer(initialcrcs)
         self.congested_since = None
+        self.last_received = now()
         #self.consolidate_sends = None
         #self.encode_delayed_until = now()
 
@@ -94,8 +97,22 @@ class SocketOverUdp(object):
             self._encode()
 
     def recv(self, _ignoredbufsize=None):
+        while True:
+            delay = self.pl.settime(now())
+            if delay == 0.0:
+                self._encode()
+                continue
+            silence = self.last_received + SILENCE_TIMEOUT - now()
+            if silence <= 0:
+                raise socket.error("peer not responding, timing out")
+            if delay is None or delay > silence:
+                delay = silence
+            iwtd, owtd, ewtd = select([self.udpsock], [], [], delay)
+            if iwtd:
+                break
         #print 'recv:'
         packet = self.udpsock.recv(65535)
+        self.last_received = now()
         #print "                 in:", len(packet), hex(ord(packet[0]))
         #print repr(packet)
         self.pl.settime(now())
