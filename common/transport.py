@@ -17,7 +17,8 @@ talks to a Transport and does not know what is underneath:
 
 On the server, the datagrams of all the NativeTransport clients go
 through one UdpEndpoint: the UDP socket on the port number of the game's
-TCP socket.
+TCP socket.  So do the meta-server's UDP connections (the stream over
+UDP of metaserver/socketoverudp.py), each through an EndpointPeer.
 
 Only the standard library is used here.
 """
@@ -259,6 +260,7 @@ class UdpEndpoint:
     SNDBUF = 1 << 20            # the frames of all the clients
 
     def __init__(self, port):
+        self.peers = {}         # {address: EndpointPeer}
         s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
         try:
             s.bind(('', port))
@@ -279,7 +281,10 @@ class UdpEndpoint:
         return self.sock.sendto(data, addr)
 
     def datagrams(self):
-        """The (data, address) received so far, without blocking."""
+        """The control datagrams received so far (see msgstruct.py),
+        as (data, address), without blocking.  The packets of the peers
+        (first byte 0xE0 to 0xEF) go to their EndpointPeer; the others
+        are reserved."""
         while True:
             try:
                 data, addr = self.sock.recvfrom(65535)
@@ -289,7 +294,22 @@ class UdpEndpoint:
                 if e.errno in (errno.EWOULDBLOCK, errno.EAGAIN):
                     return
                 continue
-            yield data, addr
+            if data[:1] == b'.':
+                yield data, addr
+            elif data and 0xE0 <= data[0] <= 0xEF:
+                # metaserver/socketoverudp.py: 0xE0 to 0xE5, and reserved
+                # for it up to 0xEF
+                peer = self.peers.get(addr)
+                if peer is not None:
+                    peer.feed(data)
+
+    def open_peer(self, addr):
+        """A socket-like object for a UDP connection with 'addr' through
+        this endpoint, as the stream over UDP of the meta-server needs."""
+        # an earlier one with the same address gets nothing more, and
+        # its owner closes it when it gives up
+        peer = self.peers[addr] = EndpointPeer(self, addr)
+        return peer
 
     def fileno(self):
         return self.sock.fileno()
@@ -299,6 +319,61 @@ class UdpEndpoint:
 
     def close(self):
         self.sock.close()
+
+
+class EndpointPeer:
+    """What a UdpEndpoint receives from one address, readable like a
+    connected UDP socket (select(), recv()); send() goes out through the
+    endpoint.  The endpoint feeds it through a pair of UDP sockets on the
+    loopback interface, connected to each other: they keep the datagrams
+    apart, and select() can wait on them, on every system."""
+
+    def __init__(self, endpoint, addr):
+        self.endpoint = endpoint
+        self.addr = addr
+        inlet = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        outlet = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        try:
+            inlet.bind(('127.0.0.1', 0))
+            outlet.bind(('127.0.0.1', 0))
+            inlet.connect(outlet.getsockname())
+            outlet.connect(inlet.getsockname())
+            inlet.setblocking(0)
+        except error:
+            inlet.close()
+            outlet.close()
+            raise
+        self.inlet, self.outlet = inlet, outlet
+
+    def feed(self, data):
+        try:
+            self.inlet.send(data)
+        except error:
+            pass        # full: dropped, as by the network
+
+    def send(self, data):
+        return self.endpoint.sendto(data, self.addr)
+
+    def recv(self, bufsize):
+        return self.outlet.recv(bufsize)
+
+    def fileno(self):
+        return self.outlet.fileno()
+
+    def getpeername(self):
+        return self.addr
+
+    def getsockname(self):
+        return self.endpoint.getsockname()
+
+    def setsockopt(self, *args):
+        pass
+
+    def close(self):
+        if self.endpoint.peers.get(self.addr) is self:
+            del self.endpoint.peers[self.addr]
+        self.inlet.close()
+        self.outlet.close()
 
 
 class BroadcastTransport(Transport):

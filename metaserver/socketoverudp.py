@@ -8,6 +8,8 @@ SOU_RANGE_START = FLAG_RANGE_START
 SOU_MIXED_DATA  = FLAG_RANGE_STOP + 0
 SOU_SHUTDOWN    = FLAG_RANGE_STOP + 1
 SOU_RANGE_STOP  = FLAG_RANGE_STOP + 2
+SOU_RESERVED_STOP = 0xF0    # SOU_RANGE_STOP to 0xEF: reserved for future
+                            # use, dropped (also by common/transport.py)
 
 SHUTDOWN_PACKET = bytes([SOU_SHUTDOWN]) + b'**'    #  < 4 characters
 
@@ -68,6 +70,8 @@ class SocketOverUdp(object):
             #print ' ~~~'
             return data
         except InvalidPacket:
+            if packet and SOU_RANGE_STOP <= packet[0] < SOU_RESERVED_STOP:
+                return b''      # reserved for future use
             if len(packet) >= 4:
                 hdr, reserved, size = struct.unpack("!BBH", packet[:4])
                 if hdr == SOU_MIXED_DATA:
@@ -136,7 +140,9 @@ class SocketOverUdp(object):
     send = sendall
 
     def send_video_data(self, udpdata):
-        forced_embedded = SOU_RANGE_START <= udpdata[0] < SOU_RANGE_STOP
+        # a frame that starts like one of our packets, or like a reserved
+        # one, is sent inside a mixed packet: else it would be read as such
+        forced_embedded = SOU_RANGE_START <= udpdata[0] < SOU_RESERVED_STOP
         self.pl.settime(now())
         packet = self.pl.encode(self.PACKETSIZE) or b''
         if not forced_embedded and not packet:
@@ -152,8 +158,14 @@ class SocketOverUdp(object):
             #print repr(packet[:10])
             #print "out:", len(packet)
             #print ' ---'
-            self.udpsock.send(packet)
-            datagram = udpdata
+            if packet:
+                self.udpsock.send(packet)
+            if forced_embedded:
+                # a mixed packet with nothing after the frame
+                datagram = (struct.pack("!BBH", SOU_MIXED_DATA, 0,
+                                        len(udpdata)) + udpdata)
+            else:
+                datagram = udpdata
         #print repr(datagram[:10])
         #print "out:", len(datagram), hex(ord(datagram[0]))
         self.udpsock.send(datagram)

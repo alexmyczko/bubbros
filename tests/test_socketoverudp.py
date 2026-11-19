@@ -93,5 +93,61 @@ class TestSocketOverUdp(unittest.TestCase):
         self.assertRaises(socket.error, client.recv)
 
 
+    def test_reserved_packets_are_dropped(self):
+        # 0xE6 to 0xEF: reserved for future use, not taken for frames
+        frames = []
+        a, b = udp_pair()
+        self.addCleanup(a.close)
+        self.addCleanup(b.close)
+        sock = SocketOverUdp(a, (1, 2))
+        sock.udp_over_udp_decoder = frames.append
+        for first in range(0xE6, 0xF0):
+            for packet in (bytes([first]), bytes([first]) + b'\x00' * 20):
+                self.assertEqual(sock._decode(packet), b'')
+        self.assertEqual(frames, [])
+        sock._decode(b'\x80frame')      # a frame still is one
+        self.assertEqual(frames, [b'\x80frame'])
+
+    def test_frame_that_looks_reserved_is_wrapped(self):
+        # a frame starting with 0xE0 to 0xEF goes inside a mixed packet,
+        # so that it reaches the frame decoder on the other side
+        a, b = udp_pair()
+        self.addCleanup(a.close)
+        self.addCleanup(b.close)
+        sender = SocketOverUdp(a, (1, 2))
+        receiver = SocketOverUdp(b, (2, 1))
+        frames = []
+        receiver.udp_over_udp_decoder = frames.append
+        for first in (0xE2, 0xE7, 0xEF):
+            sender.send_video_data(bytes([first]) + b'frame')
+            b.settimeout(2)
+            receiver._decode(b.recv(65535))
+        self.assertEqual(frames, [bytes([f]) + b'frame'
+                                  for f in (0xE2, 0xE7, 0xEF)])
+
+    def test_large_frame_that_looks_reserved_is_wrapped(self):
+        # too large to share a datagram with a stream packet: still
+        # wrapped, alone
+        a, b = udp_pair()
+        self.addCleanup(a.close)
+        self.addCleanup(b.close)
+        sender = SocketOverUdp(a, (1, 2))
+        receiver = SocketOverUdp(b, (2, 1))
+        frames = []
+        receiver.udp_over_udp_decoder = frames.append
+        b.settimeout(2)
+        big = [bytes([first]) + b'x' * 2000 for first in (0xE4, 0xE7)]
+        for frame in big:
+            sender.sendall(b'stream data')      # a stream packet waits
+            sender.send_video_data(frame)
+            sender.send_video_data(frame)       # and none
+        received = []
+        while len(frames) < 4:
+            packet = b.recv(65535)
+            self.assertTrue(packet)             # no empty datagram
+            received.append(receiver._decode(packet))
+        self.assertEqual(frames, [big[0], big[0], big[1], big[1]])
+        self.assertEqual(b''.join(received), b'stream data' * 2)
+
 if __name__ == '__main__':
     unittest.main()

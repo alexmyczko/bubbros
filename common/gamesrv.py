@@ -1338,6 +1338,10 @@ class Game:
   def newclient_threadsafe(self, conn, addr):
     self.pendingclients.insert(0, (conn, addr))
 
+  def udp_endpoint(self):
+    "The game's UDP socket (UdpEndpoint), or None."
+    return findsocket('UDP')
+
 
 def recursiveloop(endtime, extra_sockets):
   global game

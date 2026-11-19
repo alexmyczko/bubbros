@@ -207,9 +207,15 @@ class MetaClientSrv(MessageSocket):
         def connect(origin, secret, port):
             host, _ = origin.decode('ascii').split(':')
             addr = host, port
-            s = socket(AF_INET, SOCK_DGRAM)
+            # through the game's UDP port if it has one: then the client's
+            # NAT only needs to let in what comes from there
+            endpoint = getattr(self.game, 'udp_endpoint', lambda: None)()
+            if endpoint is not None:
+                s = endpoint.open_peer(addr)
+            else:
+                s = socket(AF_INET, SOCK_DGRAM)
+                s.connect(addr)
             print('udp connecting to', addr, file=sys.stderr)
-            s.connect(addr)
             mysecret = random.randrange(0, 65536)
             packet = b'B' + bytes([  secret & 0xFF,   secret >> 8,
                                    mysecret & 0xFF, mysecret >> 8])
@@ -238,6 +244,7 @@ class MetaClientSrv(MessageSocket):
                         break
             else:
                 print('udp connecting: no answer, giving up', file=sys.stderr)
+                s.close()
                 return
             sock = SocketOverUdp(s, (mysecret, secret))
             data = sock._decode(inbuf)
@@ -248,12 +255,14 @@ class MetaClientSrv(MessageSocket):
                 iwtd, owtd, ewtd = select([sock], [], [], 5.0)
                 if sock not in iwtd:
                     print('udp connecting: timed out', file=sys.stderr)
+                    sock.close()
                     return
                 #print 'decoding more'
                 data += sock.recv()
                 #print 'now data is', repr(data)
             if data[:-2] != expected:
                 print('udp connecting: bad data', file=sys.stderr)
+                sock.close()
                 return
             sock.sendall(b'[bnb s->c]' + data[-2:])
             sock.flush()
@@ -262,12 +271,14 @@ class MetaClientSrv(MessageSocket):
                 iwtd, owtd, ewtd = select([sock], [], [], 5.0)
                 if sock not in iwtd:
                     print('udp connecting: timed out', file=sys.stderr)
+                    sock.close()
                     return
                 data = sock.recv(200)
                 if data:
                     break
             if data != b'^':
                 print('udp connecting: bad data', file=sys.stderr)
+                sock.close()
                 return
             #print 'done!'
             self.game.newclient_threadsafe(sock, addr)

@@ -252,6 +252,106 @@ class Endpoint(unittest.TestCase):
         self.assertRaises(OSError, list, self.endpoint.datagrams())
 
 
+class Peers(unittest.TestCase):
+    """The meta-server's UDP connections through the endpoint."""
+
+    def setUp(self):
+        self.endpoint = transport.UdpEndpoint(0)
+        self.addCleanup(self.endpoint.close)
+        self.port = self.endpoint.getsockname()[1]
+        self.remote = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.remote.bind(('127.0.0.1', 0))
+        self.remote.connect(('127.0.0.1', self.port))
+        self.addCleanup(self.remote.close)
+        self.peer = self.endpoint.open_peer(self.remote.getsockname())
+        self.addCleanup(self.peer.close)
+
+    def pump(self):
+        # what the server's main loop does with the endpoint
+        select.select([self.endpoint], [], [], 1)
+        return list(self.endpoint.datagrams())
+
+    def test_routing(self):
+        self.remote.send(b'\xe2stream')
+        self.remote.send(b'.')
+        self.assertEqual([d for d, a in self.pump()], [b'.'])
+        iwtd, owtd, ewtd = select.select([self.peer], [], [], 1)
+        self.assertEqual(iwtd, [self.peer])
+        self.assertEqual(self.peer.recv(100), b'\xe2stream')
+        # from elsewhere, or not in 0xE0..0xEF: not for the peer
+        other = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.addCleanup(other.close)
+        other.sendto(b'\xe2other', ('127.0.0.1', self.port))
+        self.remote.send(b'\x80reserved')
+        self.pump()
+        self.assertEqual(select.select([self.peer], [], [], 0.2)[0], [])
+
+    def test_send_comes_from_the_game_port(self):
+        self.peer.send(b'\xe2back')
+        self.remote.settimeout(1)
+        self.assertEqual(self.remote.recv(100), b'\xe2back')  # connected:
+        # it only accepts what comes from the game port
+
+    def test_close(self):
+        self.peer.close()
+        self.assertNotIn(self.remote.getsockname(), self.endpoint.peers)
+        self.remote.send(b'\xe2late')
+        self.pump()                 # dropped, no error
+
+    def test_reopen(self):
+        # a second handshake from the same address takes over; the first
+        # one's socket stays usable until its owner closes it
+        addr = self.remote.getsockname()
+        second = self.endpoint.open_peer(addr)
+        self.addCleanup(second.close)
+        self.remote.send(b'\xe2new')
+        self.pump()
+        self.assertEqual(select.select([self.peer], [], [], 0.2)[0], [])
+        self.assertEqual(second.recv(100), b'\xe2new')
+        self.peer.close()
+        self.assertIs(self.endpoint.peers[addr], second)
+
+    def test_stream_over_udp(self):
+        # metaserver/socketoverudp.py over a peer, against a client on a
+        # socket of its own, losing 10% of the packets both ways
+        import random, threading
+        sys.path.insert(0, os.path.join(ROOT, 'metaserver'))
+        from socketoverudp import SocketOverUdp
+        rnd = random.Random(1)
+        class Lossy:
+            def __init__(self, sock):
+                self.sock = sock
+            def send(self, data):
+                if rnd.random() < 0.1:
+                    return len(data)
+                return self.sock.send(data)
+            def __getattr__(self, name):
+                return getattr(self.sock, name)
+        server = SocketOverUdp(Lossy(self.peer), (1, 2))
+        client = SocketOverUdp(Lossy(self.remote), (2, 1))
+        stop = threading.Event()
+        self.addCleanup(stop.set)
+        def loop():
+            while not stop.is_set():
+                self.pump()
+        threading.Thread(target=loop, daemon=True).start()
+        data_up = bytes(range(256)) * 200
+        data_down = bytes(range(255, -1, -1)) * 200
+        client.sendall(data_up)
+        server.sendall(data_down)
+        got_up = got_down = b''
+        deadline = time.time() + 20
+        while (len(got_up) < len(data_up) or len(got_down) < len(data_down)) \
+                and time.time() < deadline:
+            iwtd, owtd, ewtd = select.select([server, client], [], [], 0.1)
+            if server in iwtd:
+                got_up += server.recv()
+            if client in iwtd:
+                got_down += client.recv()
+        self.assertEqual(got_up, data_up)
+        self.assertEqual(got_down, data_down)
+
+
 class GameSockets(unittest.TestCase):
     """The game's TCP and UDP sockets share their port number."""
 
