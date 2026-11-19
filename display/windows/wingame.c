@@ -678,6 +678,46 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
     }
 }
 
+static void blend_pixel(unsigned char* dst, const unsigned char* src,
+                        int a, int bpp)
+{
+  /* dst = src*a + dst*(1-a), a in 0..256 */
+  int na = 256 - a;
+  unsigned s, d, r, g, b;
+  switch (bpp)
+    {
+    case 15:
+      s = src[0] | (src[1] << 8);
+      d = dst[0] | (dst[1] << 8);
+      r = (((s >> 10) & 31) * a + ((d >> 10) & 31) * na) >> 8;
+      g = (((s >> 5) & 31) * a + ((d >> 5) & 31) * na) >> 8;
+      b = ((s & 31) * a + (d & 31) * na) >> 8;
+      d = (r << 10) | (g << 5) | b;
+      dst[0] = d & 0xff;
+      dst[1] = d >> 8;
+      break;
+    case 16:
+      s = src[0] | (src[1] << 8);
+      d = dst[0] | (dst[1] << 8);
+      r = (((s >> 11) & 31) * a + ((d >> 11) & 31) * na) >> 8;
+      g = (((s >> 5) & 63) * a + ((d >> 5) & 63) * na) >> 8;
+      b = ((s & 31) * a + (d & 31) * na) >> 8;
+      d = (r << 11) | (g << 5) | b;
+      dst[0] = d & 0xff;
+      dst[1] = d >> 8;
+      break;
+    case 24:
+    case 32:
+      dst[0] = (src[0] * a + dst[0] * na) >> 8;
+      dst[1] = (src[1] * a + dst[1] * na) >> 8;
+      dst[2] = (src[2] * a + dst[2] * na) >> 8;
+      break;
+    default:      /* 8 bits: a palette, no blending */
+      dst[0] = src[0];
+      break;
+    }
+}
+
 static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
 {
   if (!checkopen(self))
@@ -690,11 +730,28 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
       unsigned char* src;
       Py_ssize_t length;
       long keycol;
+      int alpha = 255;
+      PyObject* pixmap;
       int bytes_per_pixel = self->screenbmpinfo.bmiHeader.biBitCount/8;
       unsigned char* data = self->screenfirstline;
-      if (!PyArg_ParseTuple(args, "ii(iis#l)|(iiii)",
-                            &x, &y, &w, &h, &src, &length, &keycol,
-                            &clipx, &clipy, &clipw, &cliph) || !data)
+      /* pixmap: (w, h, data, keycol), or (w, h, data, keycol, alpha)
+         from getopticon() for a slightly transparent icon, drawn whole:
+         pclient.py then gives None as the rect */
+      PyObject* rect = Py_None;
+      if (!PyArg_ParseTuple(args, "iiO!|O", &x, &y, &PyTuple_Type, &pixmap,
+                            &rect) || !data)
+        return NULL;
+      if (rect != Py_None)
+        {
+          /* any 4-item sequence, as the "(iiii)" format took */
+          PyObject* t = PySequence_Tuple(rect);
+          int ok = t && PyArg_ParseTuple(t, "iiii", &clipx, &clipy, &clipw, &cliph);
+          Py_XDECREF(t);
+          if (!ok)
+            return NULL;
+        }
+      if (!PyArg_ParseTuple(pixmap, "iis#l|i", &w, &h, &src, &length,
+                            &keycol, &alpha))
         return NULL;
   
       scanline = bytes_per_pixel*w;
@@ -724,7 +781,15 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
 	  int b;
           unsigned char* src0 = src;
 	  unsigned char* data0 = data;
-          if (keycol < 0)
+          if (alpha < 255)
+            {
+              unsigned char *keycol_bytes = (unsigned char *)&keycol;
+              int a = alpha + (alpha >> 7);
+              for (i=0; i<w; i++, data += bytes_per_pixel, src += bytes_per_pixel)
+                if (keycol < 0 || memcmp(src, keycol_bytes, bytes_per_pixel))
+                  blend_pixel(data, src, a, self->bpp);
+            }
+          else if (keycol < 0)
             for (i=0; i<w; i++)
 	      for (b=0; b<bytes_per_pixel; b++)
 		*data++ = *src++;

@@ -107,8 +107,10 @@ def graphicmodeslist():
     return [
         x11,
         GraphicMode('windows', 'MS Windows',
-                    ['--fullscreen=yes    go full screen (Esc key to exit)'],
-                    {'fullscreen': 'no'}),
+                    ['--fullscreen=yes    go full screen (Esc key to exit)',
+                     '--transparency=yes  slightly transparent bubbles (default)',
+                     '--transparency=no   disable it (a bit faster)'],
+                    {'transparency': 'yes', 'fullscreen': 'no'}),
         GraphicMode('pygame', 'PyGame library (all platforms)',
                     ['--fullscreen=yes    go full screen (Esc key to exit)',
                      '--transparency=yes  slightly transparent bubbles (default)',
