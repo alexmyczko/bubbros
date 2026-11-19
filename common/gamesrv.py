@@ -7,7 +7,7 @@ from hashlib import md5
 from time import time, ctime
 from msgstruct import *
 from errno import EWOULDBLOCK
-from transport import gettransport, BroadcastTransport
+from transport import gettransport, BroadcastTransport, UdpEndpoint
 
 
 SERVER_TIMEOUT = 7200   # 2 hours without any connection or port activity
@@ -428,7 +428,7 @@ class Client:
 
   def __init__(self, conn, addr):
     # 'conn' is a Transport (see transport.py) or a connected socket
-    self.transport = gettransport(conn)
+    self.transport = gettransport(conn, endpoint=findsocket('UDP'))
     self.addr = addr
     self.sendframe = None     # sends one frame, returns the byte count
     self.udpsockcounter = 0
@@ -1010,35 +1010,55 @@ def removesocket(role, socket=None):
   except KeyError:
     pass
 
-def opentcpsocket(port=None):
-  port = port or PORTS.get('LISTEN', INADDR_ANY)
-  s = findsocket('LISTEN')
-  if s is None:
+def opengamesockets(port):
+  """The game's TCP socket, and its UDP socket (UdpEndpoint) on the same
+  port number, or None if that one is taken."""
+  if port != INADDR_ANY:
+    tries = [port]
+  else:
+    tries = [INADDR_ANY] * 5 + random.sample(range(8000, 12000), 10)
+  for port in tries:
     s = socket(AF_INET, SOCK_STREAM)
     try:
       s.bind(('', port))
       s.listen(1)
     except error:
-      if port == INADDR_ANY:
-        for i in range(10):
-          port = random.choice(range(8000, 12000))
-          try:
-            s.bind(('', port))
-            s.listen(1)
-          except error:
-            pass
-          else:
-            break
-        else:
-          raise error("server cannot find a free TCP socket port")
-      else:
+      s.close()
+      if len(tries) == 1:
         raise
+      continue
+    try:
+      u = UdpEndpoint(s.getsockname()[1])
+    except error as e:
+      if port == INADDR_ANY or port != tries[-1]:
+        s.close()       # try another port number, free for both
+        continue
+      print("Cannot open the UDP port %d: %s" % (port, e), file=sys.stderr)
+      u = None
+    return s, u
+  raise error("server cannot find a free TCP socket port")
+
+def opentcpsocket(port=None):
+  port = port or PORTS.get('LISTEN', INADDR_ANY)
+  s = findsocket('LISTEN')
+  if s is None:
+    s, u = opengamesockets(port)
 
     def tcpsocket_handler(s=s):
       conn, addr = s.accept()
       game.newclient(conn, addr)
-    
+
     addsocket('LISTEN', s, tcpsocket_handler)
+    if u is not None:
+      def udpsocket_handler(u=u):
+        try:
+          for data, addr in u.datagrams():
+            pass    # the clients' first datagram, to open their NAT
+        except error as e:
+          print("UDP socket error:", e, file=sys.stderr)
+          removesocket('UDP', u)
+          u.close()
+      addsocket('UDP', u, udpsocket_handler)
   return s
 
 def openpingsocket(only_port=None):
@@ -1351,6 +1371,9 @@ def mainloop():
         if game is None or not game.FnExcHandler(0):
           raise
   finally:
+    for u in findsockets('UDP'):
+      u.close()
+    removesocket('UDP')
     removesocket('LISTEN')
     removesocket('PING')
     if interrupted:

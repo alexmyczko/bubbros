@@ -1,6 +1,7 @@
 """The transport layer (common/transport.py): what the game server and
 the Python client send goes through it, over regular sockets."""
 
+import errno
 import os
 import select
 import socket
@@ -125,6 +126,96 @@ class Others(unittest.TestCase):
         self.addCleanup(t.close)
         self.assertEqual(t.getsockname(), ('', 18999))
         self.assertEqual(t.udp_kind, 'broadcast')
+
+
+class Endpoint(unittest.TestCase):
+    """The server's one UDP socket (UdpEndpoint), on the game's port."""
+
+    def setUp(self):
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.bind(('127.0.0.1', 0))
+        self.listener.listen(4)
+        self.addCleanup(self.listener.close)
+        self.port = self.listener.getsockname()[1]
+        self.endpoint = transport.UdpEndpoint(self.port)
+        self.addCleanup(self.endpoint.close)
+
+    def connect(self):
+        c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        c.connect(self.listener.getsockname())
+        s, addr = self.listener.accept()
+        client = NativeTransport(c, blocking=True)
+        server = NativeTransport(s, endpoint=self.endpoint)
+        self.addCleanup(client.close)
+        self.addCleanup(server.close)
+        return client, server
+
+    def test_frames_come_from_where_the_client_sent(self):
+        # A port-restricted NAT only lets in datagrams from the address
+        # and port the client sent to: the server's address and game
+        # port (see startplaying() in pclient.py).  A connected UDP
+        # socket filters in the same way.  Two clients at once.
+        for i in range(2):
+            client, server = self.connect()
+            host, port = client.bind_udp()
+            client.udpsock.connect(client.getpeername())    # the "NAT"
+            server.open_udp('127.0.0.1', port)
+            self.assertEqual(server.udp_kind, 'udp')
+            server.send_udp(b'frame%d' % i)
+            iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
+            self.assertEqual(iwtd, [client.udpsock], 'frame %d filtered' % i)
+            self.assertEqual(client.recv_udp(65535), b'frame%d' % i)
+
+    def test_closing_a_client_keeps_the_endpoint(self):
+        client, server = self.connect()
+        host, port = client.bind_udp()
+        server.open_udp('127.0.0.1', port)
+        server.close()
+        client.send_udp(b'.')       # the endpoint still receives
+        select.select([self.endpoint], [], [], 2)
+        self.assertEqual([data for data, addr in self.endpoint.datagrams()],
+                         [b'.'])
+
+    def test_errors_of_one_datagram_are_ignored(self):
+        class Sock:
+            def __init__(self, errors):
+                self.errors = errors
+            def recvfrom(self, size):
+                raise self.errors.pop(0)
+        real = self.endpoint.sock
+        self.addCleanup(setattr, self.endpoint, 'sock', real)
+        # an ICMP error report (Windows), then nothing more to read
+        self.endpoint.sock = Sock([ConnectionResetError(errno.ECONNRESET, ''),
+                                   OSError(errno.EMSGSIZE, ''),
+                                   BlockingIOError(errno.EWOULDBLOCK, '')])
+        self.assertEqual(list(self.endpoint.datagrams()), [])
+        # but a real error of the socket is one
+        self.endpoint.sock = Sock([OSError(errno.EBADF, '')])
+        self.assertRaises(OSError, list, self.endpoint.datagrams())
+
+
+class GameSockets(unittest.TestCase):
+    """The game's TCP and UDP sockets share their port number."""
+
+    def test_same_port(self):
+        s, u = gamesrv.opengamesockets(0)
+        self.addCleanup(s.close)
+        self.addCleanup(u.close)
+        self.assertEqual(s.getsockname()[1], u.getsockname()[1])
+
+    def test_udp_port_taken(self):
+        # a fixed port: the game still runs, without its UdpEndpoint
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(('', 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        taken = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        taken.bind(('', port))
+        self.addCleanup(taken.close)
+        s, u = gamesrv.opengamesockets(port)
+        self.addCleanup(s.close)
+        self.assertIsNone(u)
+        self.assertEqual(s.getsockname()[1], port)
 
 
 class FakeTransport(Transport):

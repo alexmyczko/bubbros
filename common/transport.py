@@ -15,13 +15,26 @@ talks to a Transport and does not know what is underneath:
                      for the datagrams, for the HTML5 client.  It needs
                      extra packages and lives in html5server.py.
 
+On the server, the datagrams of all the NativeTransport clients go
+through one UdpEndpoint: the UDP socket on the port number of the game's
+TCP socket.
+
 Only the standard library is used here.
 """
 
 import socket as _socket
 from socket import error
 from select import select
+import errno
 from errno import EWOULDBLOCK
+
+# Errors of a datagram socket that concern one datagram or one peer, not
+# the socket: the socket keeps working (ECONNRESET is how Windows reports
+# an ICMP "port unreachable" for an earlier datagram, to any peer).
+TRANSIENT_UDP_ERRORS = set(getattr(errno, name) for name in
+                           ('EWOULDBLOCK', 'EAGAIN', 'ECONNRESET',
+                            'ECONNREFUSED', 'EMSGSIZE', 'ETIMEDOUT')
+                           if hasattr(errno, name))
 
 
 class Transport:
@@ -96,10 +109,11 @@ class NativeTransport(Transport):
 
     kind = 'tcp'
 
-    def __init__(self, sock, blocking=False):
+    def __init__(self, sock, blocking=False, endpoint=None):
         self.sock = sock
         self.udpsock = None
         self.udppeer = None     # for an unconnected UDP socket
+        self.endpoint = endpoint    # server side: the game's UdpEndpoint
         if not blocking:
             sock.setblocking(0)
 
@@ -134,12 +148,18 @@ class NativeTransport(Transport):
     # ---- the datagrams ----
 
     def open_udp(self, host=None, port=None):
-        """Server side: a UDP socket that sends to the client's port."""
+        """Server side: send the datagrams to the client's port, from
+        the game's UdpEndpoint, or else from a UDP socket of our own."""
         self.close_udp()
         if hasattr(self.sock, 'udp_over_udp_mixer'):
             # for SocketOverUdp: the frames share its UDP socket
             self.udpsock = self.sock.udp_over_udp_mixer()
             self.udp_kind = 'udp-over-udp'
+        elif self.endpoint is not None:
+            self.udpsock = self.endpoint
+            self.udppeer = (host or self.getpeername()[0], port)
+            self.udp_kind = 'udp'
+            return
         else:
             s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
             try:
@@ -189,7 +209,7 @@ class NativeTransport(Transport):
         self.udpsock = None
         self.udppeer = None
         self.udp_kind = None
-        if s is not None and hasattr(s, 'close'):
+        if s is not None and s is not self.endpoint and hasattr(s, 'close'):
             try:
                 s.close()
             except error:
@@ -216,6 +236,58 @@ class NativeTransport(Transport):
         if name == 'sock':
             raise AttributeError(name)
         return getattr(self.sock, name)
+
+
+class UdpEndpoint:
+    """Server side: the game's UDP socket, on the port number of its
+    TCP socket, where the clients send their first datagram to open the
+    way through their NAT.  It sends the datagrams of all the clients,
+    so that they come from there: a NAT may only let in what comes from
+    where its client sent to.  It also receives what the clients send."""
+
+    SNDBUF = 1 << 20            # the frames of all the clients
+
+    def __init__(self, port):
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        try:
+            s.bind(('', port))
+        except error:
+            s.close()
+            raise
+        s.setblocking(0)
+        for level, option, value in [('SOL_SOCKET', 'SO_SNDBUF', self.SNDBUF),
+                                     ('SOL_IP', 'IP_TOS', 0x10)]:
+            try:
+                s.setsockopt(getattr(_socket, level),
+                             getattr(_socket, option), value)
+            except (error, AttributeError):
+                pass
+        self.sock = s
+
+    def sendto(self, data, addr):
+        return self.sock.sendto(data, addr)
+
+    def datagrams(self):
+        """The (data, address) received so far, without blocking."""
+        while True:
+            try:
+                data, addr = self.sock.recvfrom(65535)
+            except error as e:
+                if e.errno not in TRANSIENT_UDP_ERRORS:
+                    raise
+                if e.errno in (errno.EWOULDBLOCK, errno.EAGAIN):
+                    return
+                continue
+            yield data, addr
+
+    def fileno(self):
+        return self.sock.fileno()
+
+    def getsockname(self):
+        return self.sock.getsockname()
+
+    def close(self):
+        self.sock.close()
 
 
 class BroadcastTransport(Transport):
