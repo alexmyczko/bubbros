@@ -167,6 +167,10 @@ class NativeTransport(Transport):
             except error:
                 sock.close()
                 raise
+        # non-blocking: select() may report a datagram that is gone when
+        # recv_udp() comes (read by the meta-server's connection thread,
+        # which shares 'sock', or an error report on Windows)
+        sock.setblocking(0)
         self.udpsock = sock
         self.udppeer = self.getpeername()
         self.udp_kind = 'udp'

@@ -576,11 +576,23 @@ class MetaClientCli:
         secret = originalsecret = random.randrange(0, 65536)
         self.routemsg(RMSG_UDP_CONN, secret, port)
         secret = b'B' + bytes([secret & 0xFF, secret >> 8])
+        deadline = time.time() + 2.94
         while True:
-            iwtd, owtd, ewtd = select([s], [], [], 2.94)
-            if s not in iwtd:
+            # Stop as soon as another connection won: the game then uses
+            # this UDP socket for its frames (and may close it), and
+            # reading them here would leave the game waiting for them.
+            if self.resultsocket is not None:
                 return
-            packet, addr = s.recvfrom(200)
+            try:
+                iwtd, owtd, ewtd = select([s], [], [],
+                                          max(0, deadline - time.time()))
+                if s not in iwtd or self.resultsocket is not None:
+                    return
+                packet, addr = s.recvfrom(200)
+            except (error, ValueError):
+                if s.fileno() < 0:
+                    return  # the game closed it
+                continue    # e.g. an ICMP error on Windows (WinError 10054)
             if packet.startswith(secret) and len(packet) == 5:
                 break
         s.connect(addr)

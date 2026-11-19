@@ -156,6 +156,55 @@ class LocalMetaServer(unittest.TestCase):
         game.close()
 
 
+class UdpConnectAttempt(unittest.TestCase):
+    # The client's UDP connection attempt reads the UDP socket that the
+    # game then uses for its frames, when another connection won.
+
+    def setUp(self):
+        self.cli = metaclient.MetaClientCli('127.0.0.1:1', None,
+                                            ('127.0.0.1', free_port()))
+        self.cli.routemsg = lambda *args: None
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(('127.0.0.1', 0))
+        self.addCleanup(self.sock.close)
+        metaclient.PORTS['*udpsock*'] = self.sock, self.sock.getsockname()
+        self.addCleanup(metaclient.PORTS.pop, '*udpsock*', None)
+        self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.addCleanup(self.sender.close)
+        self.stop = threading.Event()
+        self.addCleanup(self.stop.set)
+
+    def frames(self):
+        # the frames of the game, arriving all the time
+        def send():
+            while not self.stop.is_set():
+                try:
+                    self.sender.sendto(b'\x80frame', self.sock.getsockname())
+                except OSError:
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=send, daemon=True).start()
+
+    def attempt(self, timeout):
+        t = threading.Thread(target=self.cli.attempt_udp_connect, daemon=True)
+        t0 = time.time()
+        t.start()
+        t.join(timeout)
+        self.assertFalse(t.is_alive(), 'still reading the socket')
+        return time.time() - t0
+
+    def test_stops_when_another_connection_won(self):
+        self.frames()
+        threading.Timer(0.3, setattr, (self.cli, 'resultsocket',
+                                       object())).start()
+        self.assertLess(self.attempt(5.0), 1.5)
+
+    def test_stops_when_the_game_closes_the_socket(self):
+        self.frames()
+        threading.Timer(0.3, self.sock.close).start()
+        self.attempt(5.0)
+
+
 class Page(unittest.TestCase):
     """What the web interface shows, without starting a game server."""
 

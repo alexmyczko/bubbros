@@ -92,6 +92,15 @@ class Native(unittest.TestCase):
         select.select([receiver], [], [], 5)
         self.assertEqual(receiver.recv(10), b'.')
 
+    def test_client_datagram_read_does_not_block(self):
+        # select() can report a datagram that another reader took first
+        # (the meta-server's connection thread shares a given socket):
+        # the client's main loop must not then wait for the next one
+        shared = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        shared.bind(('127.0.0.1', 0))
+        self.client.bind_udp(sock=shared)
+        self.assertRaises(BlockingIOError, self.client.recv_udp, 65535)
+
     def test_socket_extras_are_reachable(self):
         # e.g. udp_over_udp_mixer of metaserver/socketoverudp.py
         self.assertFalse(hasattr(self.server, 'udp_over_udp_mixer'))

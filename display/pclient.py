@@ -233,6 +233,8 @@ class Playfield:
                     while self.udpsock in iwtd:
                         try:
                             udpdata = self.transport.recv_udp(65535)
+                        except BlockingIOError:
+                            break       # nothing there after all
                         except error as e:
                             print(e, file=sys.stderr)
                             errors += 1
