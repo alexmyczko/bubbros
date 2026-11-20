@@ -20,7 +20,7 @@ typedef struct {
    their own, which the players choose during key definition like any
    key (the same numbers as in dpy_pygame.py).  DirectInput: no
    controller database or mapping. */
-#define MAX_PADS        8
+#define MAX_PADS        32
 #define PAD_AXES        8         /* X Y Z Rx Ry Rz, 2 sliders */
 #define PAD_HATS        4
 #define PAD_BUTTONS     128
