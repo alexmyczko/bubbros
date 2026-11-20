@@ -295,17 +295,24 @@ static void add_key_event(DisplayObject* self, WPARAM key, int etype)
   Py_DECREF(v);
 }
 
+static void reset_idle_timer(void)
+{
+  SetThreadExecutionState(ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
+}
+
 static void pad_key(DisplayObject* self, int keysym, DWORD* rep, int down)
 {
   if (down && !*rep)
     {
       *rep = (GetTickCount() + REPEAT_DELAY) | 1;   /* never 0 */
       add_key_event(self, (WPARAM) keysym, 2);
+      reset_idle_timer();
     }
   else if (!down && *rep)
     {
       *rep = 0;
       add_key_event(self, (WPARAM) keysym, 3);
+      reset_idle_timer();
     }
 }
 
@@ -315,6 +322,7 @@ static void pad_repeat(DisplayObject* self, int keysym, DWORD* rep, DWORD now)
     {
       *rep = (now + REPEAT_INTERVAL) | 1;
       add_key_event(self, (WPARAM) keysym, 2);
+      reset_idle_timer();
     }
 }
 
