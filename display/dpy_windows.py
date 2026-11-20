@@ -7,10 +7,12 @@ from io import StringIO
 class Display(BaseDisplay):
     
     def __init__(self, width, height, title, transparency='yes',
-                 fullscreen='no'):
+                 fullscreen='no', controller='yes'):
         self.use_transparency = not transparency.startswith('n')
+        use_controller = not (controller.startswith('n') or controller == 'off')
         self.xdpy = xdpy = wingame.Display(width, height,
-                                           fullscreen.startswith('y'))
+                                           fullscreen.startswith('y'),
+                                           use_controller)
         xdpy.settitle(title)
         self.pixmap = xdpy.pixmap
         self.getppm = xdpy.getppm
@@ -44,7 +46,10 @@ def htmloptionstext(nameval):
     return '''
 <%s> Full Screen (Esc key to exit)</input><%s><br>
 <%s> Draw slightly transparent bubbles</input><%s><br>
+<%s> Controller Input</input><%s><br>
 ''' % (nameval("checkbox", "fullscreen", "yes", default="no"),
        nameval("hidden", "fullscreen", "no"),
        nameval("checkbox", "transparency", "yes", default="yes"),
-       nameval("hidden", "transparency", "no"))
+       nameval("hidden", "transparency", "no"),
+       nameval("checkbox", "controller", "yes", default="yes"),
+       nameval("hidden", "controller", "no"))
