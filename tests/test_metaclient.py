@@ -112,6 +112,165 @@ class NoMetaServer(unittest.TestCase):
         self.assertEqual([e.exc_value for e in errors], [])
 
 
+class MetaServerHelpers:
+    """Meta-servers that do not work, a shorter connection timeout."""
+
+    def setUp(self):
+        self.saved = metaclient.CONNECT_TIMEOUT
+        metaclient.CONNECT_TIMEOUT = 0.5
+        self.addCleanup(setattr, metaclient, 'CONNECT_TIMEOUT', self.saved)
+
+    def keep(self, s):
+        self.addCleanup(s.close)
+        return s
+
+    def no_answer(self):
+        """An address that never answers a connection: the backlog of
+        this socket is full.  (Where the system refuses instead, the
+        tests still pass, only quicker.)"""
+        l = self.keep(socket.socket())
+        l.bind(('127.0.0.1', 0))
+        l.listen(0)
+        for i in range(4):
+            c = self.keep(socket.socket())
+            c.setblocking(False)
+            try:
+                c.connect(l.getsockname())
+            except (BlockingIOError, OSError):
+                pass
+        time.sleep(0.1)
+        return l.getsockname() + (1,)
+
+
+class Registration(MetaServerHelpers, unittest.TestCase):
+    """A game server's listing goes through a thread of its own: the game
+    never waits for the meta-server, and the thread tries again when the
+    meta-server cannot be reached or the connection is lost."""
+
+    def setUp(self):
+        MetaServerHelpers.setUp(self)
+        saved = metaclient.RETRY_DELAY
+        metaclient.RETRY_DELAY = 0.5
+        self.addCleanup(setattr, metaclient, 'RETRY_DELAY', saved)
+        saved = os.environ.get(metaclient.ENVIRON_VAR)
+        def restore():
+            if saved is None:
+                os.environ.pop(metaclient.ENVIRON_VAR, None)
+            else:
+                os.environ[metaclient.ENVIRON_VAR] = saved
+        self.addCleanup(restore)
+
+    def use(self, addr):
+        os.environ[metaclient.ENVIRON_VAR] = '%s:%d:%d' % addr
+
+    def registrar(self):
+        class Game:
+            metastatus = None
+        self.game = Game()
+        r = metaclient.Registrar(self.game)
+        metaclient.metaclisrv = r
+        self.addCleanup(setattr, metaclient, 'metaclisrv', None)
+        self.addCleanup(r.stop)
+        return r
+
+    def metaserver(self, port=0):
+        l = self.keep(socket.socket())
+        l.bind(('127.0.0.1', port))
+        l.listen(5)
+        l.settimeout(5)
+        return l
+
+    def accept(self, l):
+        c = self.keep(l.accept()[0])
+        c.settimeout(5)
+        return c
+
+    def receive(self, c, data):
+        buf = b''
+        while len(buf) < len(data):
+            more = c.recv(4096)
+            self.assertTrue(more, 'connection closed')
+            buf += more
+        self.assertEqual(buf, data)
+
+    def wait_status(self, status, timeout=5):
+        end = time.time() + timeout
+        while self.game.metastatus != status and time.time() < end:
+            time.sleep(0.02)
+        self.assertEqual(self.game.metastatus, status)
+
+    def test_listing_and_updates(self):
+        l = self.metaserver()
+        self.use(l.getsockname() + (1,))
+        r = self.registrar()
+        r.update(b'listing 1')
+        c = self.accept(l)
+        self.receive(c, b'listing 1')
+        self.wait_status('listed')
+        r.update(b'listing 2')
+        self.receive(c, b'listing 2')
+        r.send(b'traceback')
+        self.receive(c, b'traceback')
+
+    def test_messages_from_the_metaserver(self):
+        from metaserver.metastruct import RMSG_PING, RMSG_PONG, MMSG_ROUTE
+        l = self.metaserver()
+        self.use(l.getsockname() + (1,))
+        self.registrar().update(b'')
+        c = self.accept(l)
+        c.sendall(message(RMSG_PING, b'1.2.3.4:5', b'7.5'))
+        buf = b''
+        while decodemessage(buf)[0] is None:
+            buf += c.recv(4096)
+        msg = decodemessage(buf)[0]
+        self.assertEqual(msg[:3], (MMSG_ROUTE, b'1.2.3.4:5', RMSG_PONG))
+
+    def test_connection_lost(self):
+        l = self.metaserver()
+        self.use(l.getsockname() + (1,))
+        r = self.registrar()
+        r.update(b'listing 1')
+        c = self.accept(l)
+        self.receive(c, b'listing 1')
+        c.close()
+        self.wait_status('unreachable')
+        r.update(b'listing 2')
+        c = self.accept(l)                  # it tries again
+        self.receive(c, b'listing 2')       # with the latest listing
+        self.wait_status('listed')
+
+    def test_no_answer_does_not_wait(self):
+        self.use(self.no_answer())
+        r = self.registrar()
+        start = time.time()
+        for i in range(5):
+            r.update(b'listing')
+        self.assertLess(time.time() - start, 0.1)
+        self.wait_status('unreachable',
+                         metaclient.CONNECT_TIMEOUT + 2)
+
+    def test_metaserver_comes_back(self):
+        port = free_port()
+        self.use(('127.0.0.1', port, 1))
+        r = self.registrar()
+        r.update(b'listing')
+        self.wait_status('unreachable')
+        l = self.metaserver(port)
+        c = self.accept(l)
+        self.receive(c, b'listing')
+        self.wait_status('listed')
+
+    def test_stop(self):
+        l = self.metaserver()
+        self.use(l.getsockname() + (1,))
+        r = self.registrar()
+        r.update(b'listing')
+        c = self.accept(l)
+        self.receive(c, b'listing')
+        r.stop()                    # the meta-server drops the listing
+        self.assertEqual(c.recv(100), b'')
+
+
 class LocalMetaServer(unittest.TestCase):
     """metaserver/metaserver.py in a thread: a game server registers, and
     both the protocol and the web page list it."""
@@ -154,6 +313,128 @@ class LocalMetaServer(unittest.TestCase):
                                       timeout=5).read().decode('latin-1')
         self.assertIn('Test game', page)
         game.close()
+
+
+class UdpConnectAttempt(unittest.TestCase):
+    # The client's UDP connection attempt reads the UDP socket that the
+    # game then uses for its frames, when another connection won.
+
+    def setUp(self):
+        self.cli = metaclient.MetaClientCli('127.0.0.1:1', None,
+                                            ('127.0.0.1', free_port()))
+        self.cli.routemsg = lambda *args: None
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(('127.0.0.1', 0))
+        self.addCleanup(self.sock.close)
+        metaclient.PORTS['*udpsock*'] = self.sock, self.sock.getsockname()
+        self.addCleanup(metaclient.PORTS.pop, '*udpsock*', None)
+        self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.addCleanup(self.sender.close)
+        self.stop = threading.Event()
+        self.addCleanup(self.stop.set)
+
+    def frames(self):
+        # the frames of the game, arriving all the time
+        def send():
+            while not self.stop.is_set():
+                try:
+                    self.sender.sendto(b'\x80frame', self.sock.getsockname())
+                except OSError:
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=send, daemon=True).start()
+
+    def attempt(self, timeout):
+        t = threading.Thread(target=self.cli.attempt_udp_connect, daemon=True)
+        t0 = time.time()
+        t.start()
+        t.join(timeout)
+        self.assertFalse(t.is_alive(), 'still reading the socket')
+        return time.time() - t0
+
+    def test_stops_when_another_connection_won(self):
+        self.frames()
+        threading.Timer(0.3, setattr, (self.cli, 'resultsocket',
+                                       object())).start()
+        self.assertLess(self.attempt(5.0), 1.5)
+
+    def test_stops_when_the_game_closes_the_socket(self):
+        self.frames()
+        threading.Timer(0.3, self.sock.close).start()
+        self.attempt(5.0)
+
+
+class Introduction(unittest.TestCase):
+    """The meta-server introduces a client to a server for a UDP
+    connection: each side gets the other's address as seen from outside."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'metaserver_intro', os.path.join(ROOT, 'metaserver', 'metaserver.py'))
+        ms_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ms_module)
+        cls.port, cls.udpport = free_port(), free_port(socket.SOCK_DGRAM)
+        ms_module.metaserver = ms_module.MetaServer(cls.port, cls.udpport)
+        threading.Thread(target=ms_module.mainloop, daemon=True).start()
+
+    def connect(self):
+        s = socket.create_connection(('127.0.0.1', self.port), 5)
+        self.addCleanup(s.close)
+        return s
+
+    def udp(self):
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        u.bind(('127.0.0.1', 0))
+        u.settimeout(5)
+        self.addCleanup(u.close)
+        return u
+
+    def read(self, s):
+        # the next message from 's'; what comes after it stays for later
+        if not hasattr(self, 'buffers'):
+            self.buffers = {}
+        data = self.buffers.get(s, b'')
+        while True:
+            msg, rest = decodemessage(data)
+            if msg is not None:
+                self.buffers[s] = rest
+                return msg
+            data += s.recv(4096)
+
+    def test_introduction(self):
+        from metaserver.metastruct import MMSG_PUNCH, RMSG_PUNCH, \
+            RMSG_PUNCH_PROBE
+        server, gameport = self.connect(), self.udp()
+        server.sendall(message(MMSG_INFO, encodedict({'desc': b'x'})) +
+                       message(MMSG_START, 23456))
+        time.sleep(0.3)
+        serverkey = server.getsockname()[0].encode() + b':23456'
+        client, clientudp = self.connect(), self.udp()
+        clientudp.sendto(b'0xpattern', ('127.0.0.1', self.udpport))
+        time.sleep(0.2)
+        client.sendall(message(MMSG_PUNCH, serverkey, b'0xpattern', 1234))
+        probe = self.read(server)
+        self.assertEqual(probe[0], RMSG_PUNCH_PROBE)
+        nonce, udpport = probe[1], probe[2]
+        self.assertEqual(udpport, self.udpport)
+        gameport.sendto(nonce, ('127.0.0.1', udpport))
+        to_client = self.read(client)
+        to_server = self.read(server)
+        self.assertEqual(to_client, (RMSG_PUNCH, serverkey, b'127.0.0.1',
+                                     gameport.getsockname()[1]))
+        self.assertEqual(to_server[0], RMSG_PUNCH)
+        self.assertEqual(to_server[2:], (b'127.0.0.1',
+                                         clientudp.getsockname()[1], 1234))
+
+    def test_unknown_server(self):
+        from metaserver.metastruct import MMSG_PUNCH, RMSG_PUNCH
+        client, clientudp = self.connect(), self.udp()
+        clientudp.sendto(b'0xother', ('127.0.0.1', self.udpport))
+        time.sleep(0.2)
+        client.sendall(message(MMSG_PUNCH, b'1.2.3.4:5', b'0xother', 1))
+        self.assertEqual(self.read(client), (RMSG_PUNCH, b'1.2.3.4:5'))
 
 
 class Page(unittest.TestCase):

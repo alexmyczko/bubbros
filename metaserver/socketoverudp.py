@@ -2,15 +2,19 @@ from time import time as now
 from pipelayer import PipeLayer, InvalidPacket
 from pipelayer import FLAG_RANGE_START, FLAG_RANGE_STOP
 import socket, struct
+from select import select
 
 SOU_RANGE_START = FLAG_RANGE_START
 SOU_MIXED_DATA  = FLAG_RANGE_STOP + 0
 SOU_SHUTDOWN    = FLAG_RANGE_STOP + 1
 SOU_RANGE_STOP  = FLAG_RANGE_STOP + 2
+SOU_RESERVED_STOP = 0xF0    # SOU_RANGE_STOP to 0xEF: reserved for future
+                            # use, dropped (also by common/transport.py)
 
 SHUTDOWN_PACKET = bytes([SOU_SHUTDOWN]) + b'**'    #  < 4 characters
 
 CONGESTION_TIMEOUT = 20.0
+SILENCE_TIMEOUT = 20.0     # nothing at all received from the peer
 #CONSOLIDATE_DELAY  = 0.1
 
 
@@ -23,6 +27,7 @@ class SocketOverUdp(object):
         self.udpsock = udpsock
         self.pl = PipeLayer(initialcrcs)
         self.congested_since = None
+        self.last_received = now()
         #self.consolidate_sends = None
         #self.encode_delayed_until = now()
 
@@ -65,6 +70,8 @@ class SocketOverUdp(object):
             #print ' ~~~'
             return data
         except InvalidPacket:
+            if packet and SOU_RANGE_STOP <= packet[0] < SOU_RESERVED_STOP:
+                return b''      # reserved for future use
             if len(packet) >= 4:
                 hdr, reserved, size = struct.unpack("!BBH", packet[:4])
                 if hdr == SOU_MIXED_DATA:
@@ -94,8 +101,25 @@ class SocketOverUdp(object):
             self._encode()
 
     def recv(self, _ignoredbufsize=None):
+        # Wait for a packet, and meanwhile send what the PipeLayer must
+        # repeat: a lost packet is only sent again from here or from
+        # fileno().
+        while True:
+            delay = self.pl.settime(now())
+            if delay == 0.0:
+                self._encode()
+                continue
+            silence = self.last_received + SILENCE_TIMEOUT - now()
+            if silence <= 0:
+                raise socket.error("peer not responding, timing out")
+            if delay is None or delay > silence:
+                delay = silence
+            iwtd, owtd, ewtd = select([self.udpsock], [], [], delay)
+            if iwtd:
+                break
         #print 'recv:'
         packet = self.udpsock.recv(65535)
+        self.last_received = now()
         #print "                 in:", len(packet), hex(ord(packet[0]))
         #print repr(packet)
         self.pl.settime(now())
@@ -116,7 +140,9 @@ class SocketOverUdp(object):
     send = sendall
 
     def send_video_data(self, udpdata):
-        forced_embedded = SOU_RANGE_START <= udpdata[0] < SOU_RANGE_STOP
+        # a frame that starts like one of our packets, or like a reserved
+        # one, is sent inside a mixed packet: else it would be read as such
+        forced_embedded = SOU_RANGE_START <= udpdata[0] < SOU_RESERVED_STOP
         self.pl.settime(now())
         packet = self.pl.encode(self.PACKETSIZE) or b''
         if not forced_embedded and not packet:
@@ -132,8 +158,14 @@ class SocketOverUdp(object):
             #print repr(packet[:10])
             #print "out:", len(packet)
             #print ' ---'
-            self.udpsock.send(packet)
-            datagram = udpdata
+            if packet:
+                self.udpsock.send(packet)
+            if forced_embedded:
+                # a mixed packet with nothing after the frame
+                datagram = (struct.pack("!BBH", SOU_MIXED_DATA, 0,
+                                        len(udpdata)) + udpdata)
+            else:
+                datagram = udpdata
         #print repr(datagram[:10])
         #print "out:", len(datagram), hex(ord(datagram[0]))
         self.udpsock.send(datagram)

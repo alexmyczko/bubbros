@@ -139,42 +139,27 @@ def str2float(s):
 # Game Servers
 
 class MetaClientSrv(MessageSocket):
-    
+    """A game server's connection to the meta-server.  Registrar reads
+    it and sends on it, in a thread of its own."""
+
     def __init__(self, s, game):
         MessageSocket.__init__(self, s)
         self.game = game
         self.lastwakeup = None
         self.synsockets = {}
-        import gamesrv
-        gamesrv.addsocket('META', s, self.receive)
         self.closed = 0
 
     def close(self):
         if not self.closed:
             self.disconnect()
-            try:
-                self.s.shutdown(2)
-            except:
-                pass
+        try:
+            self.s.close()
+        except error:
+            pass
 
     def disconnect(self):
-        import gamesrv
-        gamesrv.removesocket('META', self.s)
         self.closed = 1
         print('disconnected from the meta-server', file=sys.stderr)
-
-    def send_traceback(self):
-        if not self.closed:
-            import traceback, io, sys
-            f = io.StringIO()
-            print(sys.version, file=f)
-            print('platform:   ', sys.platform, file=f)
-            print('argv:       ', [os.path.basename(a) for a in sys.argv[:1]]
-                  + sys.argv[1:], file=f)
-            print('version tag:', VERSION_TAG, file=f)
-            print(file=f)
-            traceback.print_exc(file = f)
-            self.s.sendall(message(MMSG_TRACEBACK, f.getvalue().encode('utf-8')))
 
     def msg_wakeup(self, origin, *rest):
         if self.lastwakeup is None or time.time()-self.lastwakeup > 4.0:
@@ -204,76 +189,104 @@ class MetaClientSrv(MessageSocket):
         _thread.start_new_thread(connect, (origin, port))
 
     def msg_udp_conn(self, origin, secret, port, *rest):
-        def connect(origin, secret, port):
-            host, _ = origin.decode('ascii').split(':')
-            addr = host, port
-            s = socket(AF_INET, SOCK_DGRAM)
-            print('udp connecting to', addr, file=sys.stderr)
-            s.connect(addr)
-            mysecret = random.randrange(0, 65536)
-            packet = b'B' + bytes([  secret & 0xFF,   secret >> 8,
-                                   mysecret & 0xFF, mysecret >> 8])
-            from socketoverudp import SocketOverUdp
-            from socketoverudp import SOU_RANGE_START, SOU_RANGE_STOP
-            for i in range(5):
-                #print 'sending', repr(packet)
-                s.send(packet)
-                iwtd, owtd, ewtd = select([s], [], [], 0.25)
-                if s in iwtd:
-                    #print 'reading'
-                    try:
-                        inbuf = s.recv(SocketOverUdp.PACKETSIZE)
-                    except error:
-                        inbuf = b''
-                        # try again?
-                        iwtd, owtd, ewtd = select([s], [], [], 0.35)
-                        if s in iwtd:
-                            try:
-                                inbuf = s.recv(SocketOverUdp.PACKETSIZE)
-                            except error:
-                                pass
-                    #print 'got', repr(inbuf)
-                    if (inbuf and
-                        SOU_RANGE_START <= inbuf[0] < SOU_RANGE_STOP):
-                        break
-            else:
-                print('udp connecting: no answer, giving up', file=sys.stderr)
-                return
-            sock = SocketOverUdp(s, (mysecret, secret))
-            data = sock._decode(inbuf)
-            #print 'decoded as', repr(data)
-            expected = b'[bnb c->s]' + packet[3:5]
-            while len(data) < len(expected) + 2:
-                #print 'waiting for more'
-                iwtd, owtd, ewtd = select([sock], [], [], 5.0)
-                if sock not in iwtd:
-                    print('udp connecting: timed out', file=sys.stderr)
-                    return
-                #print 'decoding more'
-                data += sock.recv()
-                #print 'now data is', repr(data)
-            if data[:-2] != expected:
-                print('udp connecting: bad data', file=sys.stderr)
-                return
-            sock.sendall(b'[bnb s->c]' + data[-2:])
-            sock.flush()
-            #print 'waiting for the last dot...'
-            while 1:
-                iwtd, owtd, ewtd = select([sock], [], [], 5.0)
-                if sock not in iwtd:
-                    print('udp connecting: timed out', file=sys.stderr)
-                    return
-                data = sock.recv(200)
-                if data:
-                    break
-            if data != b'^':
-                print('udp connecting: bad data', file=sys.stderr)
-                return
-            #print 'done!'
-            self.game.newclient_threadsafe(sock, addr)
-
+        # older clients: they only wait for us (see msg_punch)
+        host, _ = origin.decode('ascii').split(':')
         import _thread
-        _thread.start_new_thread(connect, (origin, secret, port))
+        _thread.start_new_thread(self.udp_accept, ((host, port), secret, 5))
+
+    def msg_punch_probe(self, nonce, udpport, *rest):
+        # a client asked the meta-server to introduce us: show it the
+        # address of our game port from outside
+        endpoint = getattr(self.game, 'udp_endpoint', lambda: None)()
+        if endpoint is not None:
+            try:
+                endpoint.sendto(nonce, (self.s.getpeername()[0], udpport))
+            except error:
+                pass
+
+    def msg_punch(self, origin, host, port, secret, *rest):
+        # the meta-server introduced us to a client: both send to each
+        # other, until each NAT lets in what comes from the other
+        addr = host.decode('ascii'), port
+        import _thread
+        _thread.start_new_thread(self.udp_accept, (addr, secret, 12))
+
+    def udp_accept(self, addr, secret, tries):
+        # through the game's UDP port if it has one: then the client's
+        # NAT only needs to let in what comes from there
+        endpoint = getattr(self.game, 'udp_endpoint', lambda: None)()
+        if endpoint is not None:
+            s = endpoint.open_peer(addr)
+        else:
+            s = socket(AF_INET, SOCK_DGRAM)
+            s.connect(addr)
+        print('udp connecting to', addr, file=sys.stderr)
+        mysecret = random.randrange(0, 65536)
+        packet = b'B' + bytes([  secret & 0xFF,   secret >> 8,
+                               mysecret & 0xFF, mysecret >> 8])
+        from socketoverudp import SocketOverUdp
+        from socketoverudp import SOU_RANGE_START, SOU_RANGE_STOP
+        for i in range(tries):
+            #print 'sending', repr(packet)
+            s.send(packet)
+            iwtd, owtd, ewtd = select([s], [], [], 0.25)
+            if s in iwtd:
+                #print 'reading'
+                try:
+                    inbuf = s.recv(SocketOverUdp.PACKETSIZE)
+                except error:
+                    inbuf = b''
+                    # try again?
+                    iwtd, owtd, ewtd = select([s], [], [], 0.35)
+                    if s in iwtd:
+                        try:
+                            inbuf = s.recv(SocketOverUdp.PACKETSIZE)
+                        except error:
+                            pass
+                #print 'got', repr(inbuf)
+                if (inbuf and
+                    SOU_RANGE_START <= inbuf[0] < SOU_RANGE_STOP):
+                    break
+        else:
+            print('udp connecting: no answer, giving up', file=sys.stderr)
+            s.close()
+            return
+        sock = SocketOverUdp(s, (mysecret, secret))
+        data = sock._decode(inbuf)
+        #print 'decoded as', repr(data)
+        expected = b'[bnb c->s]' + packet[3:5]
+        while len(data) < len(expected) + 2:
+            #print 'waiting for more'
+            iwtd, owtd, ewtd = select([sock], [], [], 5.0)
+            if sock not in iwtd:
+                print('udp connecting: timed out', file=sys.stderr)
+                sock.close()
+                return
+            #print 'decoding more'
+            data += sock.recv()
+            #print 'now data is', repr(data)
+        if data[:-2] != expected:
+            print('udp connecting: bad data', file=sys.stderr)
+            sock.close()
+            return
+        sock.sendall(b'[bnb s->c]' + data[-2:])
+        sock.flush()
+        #print 'waiting for the last dot...'
+        while 1:
+            iwtd, owtd, ewtd = select([sock], [], [], 5.0)
+            if sock not in iwtd:
+                print('udp connecting: timed out', file=sys.stderr)
+                sock.close()
+                return
+            data = sock.recv(200)
+            if data:
+                break
+        if data != b'^':
+            print('udp connecting: bad data', file=sys.stderr)
+            sock.close()
+            return
+        #print 'done!'
+        self.game.newclient_threadsafe(sock, addr)
 
     def msg_ping(self, origin, *rest):
         # ping time1  -->  pong time2 time1
@@ -314,11 +327,152 @@ class MetaClientSrv(MessageSocket):
         RMSG_PING:    msg_ping,
         RMSG_SYNC:    msg_sync,
         RMSG_UDP_CONN:msg_udp_conn,
+        RMSG_PUNCH_PROBE: msg_punch_probe,
+        RMSG_PUNCH:   msg_punch,
         }
 
-metaclisrv = None
+RETRY_DELAY = 60.0      # seconds between attempts to reach the meta-server
+
+class Registrar:
+    """A game server's listing on the meta-server, kept up by a thread of
+    its own: the game never waits for the meta-server, and when it cannot
+    be reached, or the connection is lost, the thread tries again."""
+
+    def __init__(self, game):
+        import threading
+        self.game = game
+        self.lock = threading.Lock()
+        self.listing = None     # the latest MMSG_INFO + MMSG_START
+        self.listing_sent = False
+        self.outbox = []        # other messages to send
+        self.stopped = False
+        self.wake_r, self.wake_w = socketpair()
+        threading.Thread(target=self.run, daemon=True).start()
+
+    # ---- in the game's thread ----
+
+    def update(self, listing):
+        with self.lock:
+            self.listing = listing
+            self.listing_sent = False
+        self.wakeup()
+
+    def send(self, data):
+        with self.lock:
+            self.outbox.append(data)
+        self.wakeup()
+
+    def send_traceback(self):
+        import traceback, io
+        f = io.StringIO()
+        print(sys.version, file=f)
+        print('platform:   ', sys.platform, file=f)
+        print('argv:       ', [os.path.basename(a) for a in sys.argv[:1]]
+              + sys.argv[1:], file=f)
+        print('version tag:', VERSION_TAG, file=f)
+        print(file=f)
+        traceback.print_exc(file = f)
+        self.send(message(MMSG_TRACEBACK, f.getvalue().encode('utf-8')))
+
+    def stop(self):
+        self.stopped = True
+        self.wakeup()
+
+    def wakeup(self):
+        try:
+            self.wake_w.send(b'!')
+        except error:
+            pass
+
+    # ---- in the thread ----
+
+    def setstatus(self, status):
+        if metaclisrv is self:
+            self.game.metastatus = status
+
+    def wait(self, delay):
+        """Sleep, unless stopped."""
+        end = time.time() + delay
+        while not self.stopped:
+            left = end - time.time()
+            if left <= 0:
+                break
+            if select([self.wake_r], [], [], left)[0]:
+                self.wake_r.recv(1024)
+
+    def run(self):
+        failed = None
+        next_attempt = time.time()
+        try:
+            while not self.stopped:
+                self.wait(next_attempt - time.time())
+                if self.stopped:
+                    break
+                next_attempt = time.time() + RETRY_DELAY
+                addr = address()
+                if addr is None:
+                    continue
+                try:
+                    s = create_connection(addr[:2], CONNECT_TIMEOUT)
+                    s.settimeout(None)
+                except (error, OSError) as e:
+                    if failed is None:
+                        print('*** cannot reach the meta-server %s:%d: %s '
+                              '(trying again every %d seconds)' % (
+                              addr[:2] + (e, RETRY_DELAY)), file=sys.stderr)
+                    failed = e
+                    self.setstatus('unreachable')
+                    continue
+                failed = None
+                print('connected to the meta-server %s:%d' % addr[:2],
+                      file=sys.stderr)
+                conn = MetaClientSrv(s, self.game)
+                with self.lock:
+                    self.listing_sent = False
+                try:
+                    self.serve(conn)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
+                conn.close()
+                if not self.stopped:
+                    self.setstatus('unreachable')
+        finally:
+            self.wake_r.close()
+            self.wake_w.close()
+
+    def serve(self, conn):
+        while not self.stopped and not conn.closed:
+            with self.lock:
+                data = b''.join(self.outbox)
+                del self.outbox[:]
+                listing = None
+                if not self.listing_sent and self.listing is not None:
+                    listing = self.listing
+                    self.listing_sent = True
+            try:
+                if listing is not None:
+                    conn.s.sendall(listing)
+                    self.setstatus('listed')
+                if data:
+                    conn.s.sendall(data)
+            except error:
+                conn.disconnect()
+                break
+            iwtd, owtd, ewtd = select([conn.s, self.wake_r], [], [])
+            if self.wake_r in iwtd:
+                self.wake_r.recv(1024)
+            if conn.s in iwtd:
+                try:
+                    conn.receive()
+                except error:
+                    conn.disconnect()
+
+metaclisrv = None       # the Registrar of this game server
 
 def meta_register(game):
+    """List the game on the meta-server, or update its listing.  This
+    does not wait: game.metastatus becomes 'listed' or 'unreachable'."""
     global metaclisrv
     import gamesrv
     info = {}
@@ -331,19 +485,15 @@ def meta_register(game):
     port = int(gamesrv.displaysockport(s))
     info['httpport'] = gamesrv.displaysockport(hs)
 
-    if not metaclisrv or metaclisrv.closed:
-        s = connect()
-        if not s:
-            return False
-        metaclisrv = MetaClientSrv(s, game)
-    metaclisrv.s.sendall(message(MMSG_INFO, encodedict(info)) +
-                         message(MMSG_START, port))
-    return True
+    if metaclisrv is None:
+        metaclisrv = Registrar(game)
+    metaclisrv.update(message(MMSG_INFO, encodedict(info)) +
+                      message(MMSG_START, port))
 
 def meta_unregister(game):
     global metaclisrv
     if metaclisrv:
-        metaclisrv.close()
+        metaclisrv.stop()
         metaclisrv = None
 
 
@@ -503,6 +653,10 @@ class MetaClientCli:
                         if len(msg) > 2:
                             self.gotudpport = msg[1].decode('ascii'), int(msg[2])
                         continue
+                    if (msg[0] == RMSG_PUNCH and len(msg) > 1 and
+                            msg[1] == self.serverkey.encode('ascii')):
+                        self.punchreply = msg[2:]   # () if no introduction
+                        continue
                     if (msg[0] == RMSG_NO_HOST and
                             msg[1] == self.serverkey.encode('ascii')):
                         print(('*** server %r is not registered'
@@ -559,12 +713,43 @@ class MetaClientCli:
         self.resultsocket = s
 
     def try_udp_connect(self):
+        # first with an introduction by the meta-server, where both sides
+        # send; an older meta-server or server does not answer it
+        self.attempt_udp_connect(punch=True)
         for i in range(3):     # three attempts
-            self.attempt_udp_connect()
             if self.resultsocket is not None:
                 break
+            self.attempt_udp_connect()
 
-    def attempt_udp_connect(self):
+    def ask_punch(self, s, secret):
+        """Ask the meta-server to introduce us to the server: return the
+        address of its game port from outside, or None."""
+        if not self.s:
+            return None
+        # show the meta-server our UDP address, and ask
+        pattern = hex(random.randrange(0, sys.maxsize)).encode('ascii')
+        for i in range(3):
+            try:
+                s.sendto(pattern, self.metaserver)
+            except error:
+                pass
+        time.sleep(0.1)     # before our request, which goes over TCP
+        self.punchreply = None
+        self.sendmsg(message(MMSG_PUNCH, self.serverkey.encode('ascii'),
+                             pattern, secret))
+        deadline = time.time() + 2.5
+        while (self.punchreply is None and self.resultsocket is None and
+               time.time() < deadline):
+            if self.recvlock.acquire(False):    # else another thread reads
+                self.recvlock.release()
+                self._readnextmsg(blocking=False)
+            time.sleep(0.05)
+        reply = self.punchreply
+        if not reply or len(reply) < 2:
+            return None
+        return reply[0].decode('ascii'), reply[1]
+
+    def attempt_udp_connect(self, punch=False):
         if '*udpsock*' in PORTS:
             s, (host, port) = PORTS['*udpsock*']
         else:
@@ -574,13 +759,47 @@ class MetaClientCli:
             if 'sendudpto' in PORTS:
                 host = PORTS['sendudpto']
         secret = originalsecret = random.randrange(0, 65536)
-        self.routemsg(RMSG_UDP_CONN, secret, port)
-        secret = b'B' + bytes([secret & 0xFF, secret >> 8])
-        while True:
-            iwtd, owtd, ewtd = select([s], [], [], 2.94)
-            if s not in iwtd:
+        if punch:
+            punchaddr = self.ask_punch(s, secret)
+            if punchaddr is None:
                 return
-            packet, addr = s.recvfrom(200)
+            deadline = time.time() + 3.5
+        else:
+            punchaddr = None
+            self.routemsg(RMSG_UDP_CONN, secret, port)
+            deadline = time.time() + 2.94
+        secret = b'B' + bytes([secret & 0xFF, secret >> 8])
+        nextpunch = 0.0
+        while True:
+            # Stop as soon as another connection won: the game then uses
+            # this UDP socket for its frames (and may close it), and
+            # reading them here would leave the game waiting for them.
+            if self.resultsocket is not None:
+                return
+            now = time.time()
+            if now >= deadline:
+                return
+            timeout = deadline - now
+            if punchaddr is not None:
+                # our NAT then lets in what the server sends us
+                if now >= nextpunch:
+                    try:
+                        s.sendto(datagram(message(DMSG_PUNCH)), punchaddr)
+                    except error:
+                        pass
+                    nextpunch = now + 0.2
+                timeout = min(timeout, max(0, nextpunch - now))
+            try:
+                iwtd, owtd, ewtd = select([s], [], [], timeout)
+                if self.resultsocket is not None:
+                    return
+                if s not in iwtd:
+                    continue
+                packet, addr = s.recvfrom(200)
+            except (error, ValueError):
+                if s.fileno() < 0:
+                    return  # the game closed it
+                continue    # e.g. an ICMP error on Windows (WinError 10054)
             if packet.startswith(secret) and len(packet) == 5:
                 break
         s.connect(addr)

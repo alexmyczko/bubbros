@@ -10,21 +10,15 @@ ZeroBuffer = struct.pack("i", 0)
 
 class SocketMarshaller:
     
-    def __init__(self, tcpsock, mixer):
-        self.tcpsock = tcpsock
+    def __init__(self, transport, mixer):
+        # 'transport' is the Transport of the client (see transport.py):
+        # the frames go into its reliable stream, with the messages
+        self.transport = transport
         self.mixer   = mixer
         self.mixer_can_mix = mixer.send_can_mix
         self.mixer_send    = mixer.send_buffer
-        self.tcpsock_fd = tcpsock.fileno()
         # try to reduce TCP latency
-        try:
-            tcpsock.setsockopt(SOL_IP, IP_TOS, 0x10)  # IPTOS_LOWDELAY
-        except error as e:
-            print("Cannot set IPTOS_LOWDELAY for client:", str(e))
-        try:
-            tcpsock.setsockopt(SOL_TCP, TCP_NODELAY, 1)
-        except error as e:
-            print("Cannot set TCP_NODELAY for client:", str(e))
+        transport.set_low_delay()
         compressor = compressobj(6)
         self.compress = compressor.compress
         self.compress_flush = compressor.flush

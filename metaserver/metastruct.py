@@ -13,6 +13,7 @@ MMSG_LIST     = b'L'
 MMSG_ROUTE    = b'R'
 MMSG_TRACEBACK= b'T'
 MMSG_UDP_ADDR = b'U'
+MMSG_PUNCH    = b'P'    # serverkey, pattern, secret: introduce me (UDP)
 
 RMSG_WAKEUP   = b'w'
 RMSG_PING     = b'p'
@@ -23,6 +24,10 @@ RMSG_LIST     = b'l'
 RMSG_UDP_ADDR = b'u'
 RMSG_UDP_CONN = b'd'
 RMSG_NO_HOST  = b'?'
+RMSG_PUNCH_PROBE = b'q' # nonce, udpport: send nonce to this UDP port
+RMSG_PUNCH    = b'h'    # to the server: client key, host, port, secret
+                        # to the client: server key, host, port (or
+                        # nothing: no introduction)
 
 
 # A dict travels as one '#' message per item.  Keys are text; values are

@@ -59,5 +59,17 @@ class TestMessage(unittest.TestCase):
             self.assertEqual(decodemessage(data[:cut]), (None, data[:cut]))
 
 
+    def test_control_datagram(self):
+        # b'.' then messages; a datagram may come from anybody: whatever
+        # cannot be read is dropped, without an exception
+        d = msgstruct.datagram(message(msgstruct.DMSG_TOKEN, b'tokn'),
+                               message(b'?', 1, b'more'))
+        self.assertEqual(d[:1], b'.')
+        self.assertEqual(msgstruct.decodedatagram(d),
+                         [(msgstruct.DMSG_TOKEN, b'tokn'), (b'?', 1, b'more')])
+        self.assertEqual(msgstruct.decodedatagram(b'.'), [])
+        for bad in (b'.\xff', b'.\x02zz', b'.\x01\x80', d[:-1]):
+            self.assertEqual(msgstruct.decodedatagram(bad)[1:], [])
+
 if __name__ == '__main__':
     unittest.main()
