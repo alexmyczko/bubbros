@@ -28,6 +28,7 @@ UdpLookForServer = [
 def parse_cmdline(argv):
     # parse command-line
     def usage():
+        os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
         print('usage:', file=sys.stderr)
         print('  python Client.py [-d#] [-s#] [extra options] [host[:port]]', file=sys.stderr)
         print(file=sys.stderr)
