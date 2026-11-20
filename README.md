@@ -12,31 +12,36 @@ Python 2 clients and servers can still play with the new ones.
 ## What you need
 
 - Python 3.5+ (3.8+ for the tests).
-- On Linux and other systems: pygame, for the usual client display and
+- On Linux and other systems: pygame, for the client display and
   sound.  
   On Debian or Ubuntu:
 
       sudo apt install python3 python3-pygame
 
-- On Windows: no pygame needed. The client's own display and sound
-  driver is a C extension, built once with
+  On non-managed Python installations:
+
+      python3 -m pip install pygame
+
+- On Windows: Either pygame, installed with `pip` same as above, or
+  native Windows display and sound driver, in form of a C extension,
+  built once with
 
       cd display && python setup.py build_ext -i
 
-  This needs Microsoft Visual C++ 14.x: Visual Studio 2015 or later, or
-  the free Build Tools for Visual Studio, with the "Desktop development
-  with C++" workload. setuptools finds the compiler by itself, no
-  developer command prompt needed. With Python 3.12 or later, first
-  `pip install setuptools` (distutils is gone).
+  Building the native driver needs Microsoft Visual C++ 14.x: Visual
+  Studio 2015 or later, or the free Build Tools for Visual Studio, with
+  the "Desktop development with C++" workload. setuptools finds the
+  compiler by itself, no developer command prompt needed. With Python
+  3.12 or later, first `pip install setuptools` (distutils is gone).
 
 Optional:
 
 - GTK 3 client display: `python3-gi gir1.2-gtk-3.0 python3-gi-cairo`
 - X11 client display (`-d X`), a C extension: `python3-dev python3-setuptools
   libx11-dev libxext-dev`, then `make -C display`.
-- OSS sound (`-s linux`) or Windows sound: the `audioop` module. Python 3.13
-  removed it from the standard library; install `python3-audioop-lts`
-  (Debian) or `pip install audioop-lts`.
+- OSS sound (`-s linux`) or Windows native sound (`-s windows`): the
+  `audioop` module. Python 3.13 removed it from the standard library;
+  install `python3-audioop-lts` (Debian) or `pip install audioop-lts`.
 
 ## How to play
 
