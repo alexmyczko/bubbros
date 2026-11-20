@@ -100,18 +100,8 @@ class SoundMode(Mode):
 
 
 def graphicmodeslist():
-    x11 = GraphicMode('X', 'XWindow (Linux/Unix)',
-                    ['--shm=yes  use the Shared Memory extension (default)',
-                     '--shm=no   disable it (for remote connections or old X servers)',
-                     ],
-                    {'shm': 'yes'})
-    # Chosen automatically only when no other driver is available: its
-    # window cannot be resized or scaled and has no full screen, and in a
-    # Wayland session it goes through XWayland.  --display=x still
-    # selects it.
-    x11.low_priority = 1
+    # The first one that works is the default.
     return [
-        x11,
         GraphicMode('windows', 'MS Windows',
                     ['--fullscreen=yes    go full screen (Esc key to exit)',
                      '--transparency=yes  slightly transparent bubbles (default)',
@@ -133,20 +123,30 @@ def graphicmodeslist():
                     ['--zoom=xxx%         scale image by xxx %'],
                     {'zoom': '100'},
                     url='https://pygobject.gnome.org/'),
+        # Last: its window cannot be resized or scaled and has no full
+        # screen, and in a Wayland session it goes through XWayland.
+        # --display=x still selects it.
+        GraphicMode('X', 'XWindow (Linux/Unix)',
+                    ['--shm=yes  use the Shared Memory extension (default)',
+                     '--shm=no   disable it (for remote connections or old X servers)',
+                     ],
+                    {'shm': 'yes'}),
         ]
 
 def soundmodeslist():
     return [
+        # The first one that works is the default; in the same order as
+        # graphicmodeslist(), so that both defaults are Windows or pygame
+        SoundMode('windows', 'audio mixer for Windows',
+                  ['--freq=#  mixer frequency (default 44100)',
+                   '--bits=#  bits per sample (8 or default 16)'],
+                  {'freq': '44100', 'bits': '16'}),
         SoundMode('pygame', 'PyGame library mixer (all platforms)',
                   [], url='http://www.pygame.org'),
         SoundMode('linux', 'audio mixer for Linux',
                   ['--freq=#  mixer frequency (default 44100)',
                    '--fmt=#   data format (default S16_NE, --fmt=list for a list)'],
                   {'freq': '44100', 'fmt': 'S16_NE'}),
-        SoundMode('windows', 'audio mixer for Windows',
-                  ['--freq=#  mixer frequency (default 44100)',
-                   '--bits=#  bits per sample (8 or default 16)'],
-                  {'freq': '44100', 'bits': '16'}),
         SoundMode('off', 'no sounds', []),
         ]
 
