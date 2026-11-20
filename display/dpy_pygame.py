@@ -32,6 +32,9 @@ class Display:
         winstyle = HWSURFACE
         if self.use_fullscreen:
             winstyle |= FULLSCREEN | scaled
+            # a screen is rarely a whole multiple of the playfield:
+            # use linear scaling, not uneven pixels
+            os.environ.setdefault('SDL_RENDER_SCALE_QUALITY', 'linear')
         else:
             winstyle |= RESIZABLE
         bestdepth = pygame.display.mode_ok((width, height), winstyle, 32)
@@ -147,8 +150,11 @@ class Display:
             if self.scaledsize != (sw, sh):
                 screen.fill((0, 0, 0))
                 self.scaledsize = (sw, sh)
-            screen.blit(pygame.transform.smoothscale(self.offscreen,
-                                                     (tw, th)), (ox, oy))
+            if tw % w == 0 and tw // w * h == th:
+                scale = pygame.transform.scale        # 2x, 3x...: sharp
+            else:
+                scale = pygame.transform.smoothscale
+            screen.blit(scale(self.offscreen, (tw, th)), (ox, oy))
             self.view = (f, ox, oy)
         pygame.display.flip()
         events_dispatch()

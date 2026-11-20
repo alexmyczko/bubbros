@@ -302,7 +302,7 @@ static PyObject* display_clear1(DisplayObject* self, PyObject* args)
   return Py_None;
 }
 
-inline void pack_pixel(unsigned char *data, int r, int g, int b,
+static void pack_pixel(unsigned char *data, int r, int g, int b,
 		       int depth, int bytes_per_pixel)
 {
   unsigned short pixel = 0;
@@ -330,7 +330,7 @@ inline void pack_pixel(unsigned char *data, int r, int g, int b,
 	}
       /* else it's on 32 bits. Drop into depth of 32. */
     case 32:
-      *((long *)data) = (r<<16) | (g<<8) | b;
+      *((unsigned int *)data) = (r<<16) | (g<<8) | b;
       break;
     }
 }
@@ -340,11 +340,11 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
   int w,h;
   unsigned char* input = NULL;
   Py_ssize_t length;
-  long keycol = -1;
+  int keycol = -1;
 
   if (!checkopen(self))
     return NULL;
-  if (!PyArg_ParseTuple(args, "ii|s#l", &w, &h, &input, &length, &keycol))
+  if (!PyArg_ParseTuple(args, "ii|s#i", &w, &h, &input, &length, &keycol))
     return NULL;
 
   if (self->shmmode)
@@ -382,9 +382,9 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
           int opaque = 0;
           for (x=0; x<w; x++)
             {
-              unsigned int r = input1[0];
-              unsigned int g = input1[1];
-              unsigned int b = input1[2];
+              int r = input1[0];
+              int g = input1[1];
+              int b = input1[2];
               input1 += 3;
               if (((r<<16)|(g<<8)|b) == keycol)
                 opaque = 0;
@@ -422,9 +422,9 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
           int opaque = 0;
           for (x=0; x<w; x++)
             {
-              unsigned int r = input[0];
-              unsigned int g = input[1];
-              unsigned int b = input[2];
+              int r = input[0];
+              int g = input[1];
+              int b = input[2];
               input += 3;
               if (((r<<16)|(g<<8)|b) == keycol)
                 opaque = 0;

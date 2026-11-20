@@ -66,6 +66,31 @@ class FileNames(unittest.TestCase):
         with open(f.freezefilename(), 'rb') as g:
             self.assertEqual(g.read(), data)
 
+    def test_frozen_file_is_not_kept_open(self):
+        # pygame's sound driver opens it by name: on Windows that fails
+        # while the client still has it open for writing
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root)
+
+        class Chunk(caching.Data):
+            SOURCEDIR = root
+            CACHEDIR = os.path.join(root, 'cache')
+
+        data = b'RIFF' + bytes(range(256)) * 10
+        for half in (False, True):
+            f = Chunk()
+            if half:        # in memory: written to a temporary file
+                f.store(0, data[:1000])
+                f.store(1000, data[1000:])
+            else:           # downloaded into the cache file
+                f.loadfrom('bubbob/ext1/wall%d.wav' % half, 0, len(data),
+                           md5(data).digest())
+                f.store(0, data)
+            name = f.freezefilename()
+            self.assertNotIn(name, caching.Data.Cache.cache)
+            with open(name, 'rb') as g:
+                self.assertEqual(g.read(), data)
+
 
 class Sizes(unittest.TestCase):
 

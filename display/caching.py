@@ -36,6 +36,11 @@ class FileCache:
         f.seek(position)
         return f
 
+    def close(self, filename):
+        if filename in self.cache:
+            time, mode, f = self.cache.pop(filename)
+            f.close()
+
 
 class MemoryBlock:
     def __init__(self, data):
@@ -235,6 +240,7 @@ class Data:
                 f.flush()
             #print 'freezefilename ->', self.backupfile
             #print '                    readonly =', self.readonly
+        Data.Cache.close(self.backupfile)
         self.content = None
         return self.backupfile
 
