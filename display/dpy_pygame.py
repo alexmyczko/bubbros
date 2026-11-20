@@ -4,6 +4,7 @@
 ################################################
 
 import os
+import time
 import pygame
 from pygame.locals import *
 from modes import KeyPressed, KeyReleased
@@ -13,9 +14,11 @@ class Display:
     musthidemouse = 0
     mousevisible = 1
 
-    def __init__(self, width, height, title, transparency='yes', fullscreen='no'):
+    def __init__(self, width, height, title, transparency='yes', fullscreen='no',
+                 controller='yes'):
         self.use_transparency = not transparency.startswith('n')
         self.use_fullscreen = fullscreen.startswith('y')
+        use_controller = not (controller.startswith('n') or controller == 'off')
 
         # Initialize pygame
         pygame.init()
@@ -62,6 +65,11 @@ class Display:
         EVENT_HANDLERS[KEYUP] = self.keyup_handler
         EVENT_HANDLERS[MOUSEBUTTONDOWN] = self.mousebuttondown_handler
         EVENT_HANDLERS[VIDEORESIZE] = self.videoresize_handler
+        self.joysticks = None
+        if use_controller:
+            self.joysticks = Joysticks(self.joystick_key)
+            for etype in JOYSTICK_EVENTS:
+                EVENT_HANDLERS[etype] = self.joysticks.event
 
     def videoresize_handler(self, e):
         # pygame 2 resizes the display surface by itself; pygame 1 needs
@@ -82,6 +90,12 @@ class Display:
 
     def keyup_handler(self, e):
         self.events_key.append((e.key, KeyReleased))
+        del self.events_key[:-16]
+
+    def joystick_key(self, keysym, event):
+        if event == KeyPressed:
+            self.showmouse(not self.musthidemouse)
+        self.events_key.append((keysym, event))
         del self.events_key[:-16]
 
     def mousebuttondown_handler(self, e):
@@ -196,6 +210,8 @@ class Display:
 
     def keyevents(self):
         events_dispatch()
+        if self.joysticks:
+            self.joysticks.repeat()
         events = self.events_key
         self.events_key = []
         return events
@@ -245,6 +261,140 @@ class Display:
             pygame.mouse.set_visible(v)
 
 
+# Game controllers: their buttons, sticks and D-pads arrive as keys of
+# their own, which the players choose during key definition like any
+# key.  The raw joystick API, so no controller database or mapping.
+JOYKEY_BASE = 0x20000000    # no key of pygame has such a number
+JOY_BUTTON, JOY_AXIS_NEG, JOY_AXIS_POS, JOY_HAT = range(4)
+AXIS_PRESS = 0.5            # from the axis' resting position
+AXIS_RELEASE = 0.3
+AXIS_REST = 0.9             # an axis that starts there rests there
+REPEAT_DELAY = 0.5          # as the keys, see pygame.key.set_repeat()
+REPEAT_INTERVAL = 0.77
+HAT_DIRECTIONS = ((-1, 0), (1, 0), (0, 1), (0, -1))   # left right up down
+
+JOYSTICK_EVENTS = [JOYBUTTONDOWN, JOYBUTTONUP, JOYAXISMOTION, JOYHATMOTION]
+JOYSTICK_EVENTS += [getattr(pygame, name) for name in
+                    ('JOYDEVICEADDED', 'JOYDEVICEREMOVED')
+                    if hasattr(pygame, name)]       # pygame 2
+
+
+def joystick_id(joystick):
+    try:
+        return joystick.get_instance_id()   # pygame 2
+    except AttributeError:
+        return joystick.get_id()
+
+
+class Joysticks:
+
+    def __init__(self, key):
+        self.key = key              # key(keysym, KeyPressed/KeyReleased)
+        self.pads = {}              # {joystick id: Pad}
+        try:
+            pygame.joystick.init()
+            for index in range(pygame.joystick.get_count()):
+                self.add(index)
+        except pygame.error:
+            pass
+
+    def add(self, index):
+        try:
+            joystick = pygame.joystick.Joystick(index)
+            joystick.init()
+        except pygame.error:
+            return
+        jid = joystick_id(joystick)
+        if jid not in self.pads:
+            used = [pad.slot for pad in self.pads.values()]
+            slot = min(set(range(len(used) + 1)) - set(used))
+            self.pads[jid] = Pad(joystick, slot)
+
+    def event(self, e):
+        if e.type == getattr(pygame, 'JOYDEVICEADDED', None):
+            self.add(e.device_index)
+            return
+        pad = self.pads.get(getattr(e, 'instance_id', getattr(e, 'joy', None)))
+        if pad is None:
+            return
+        if e.type == getattr(pygame, 'JOYDEVICEREMOVED', None):
+            for keysym in list(pad.held):
+                self.release(pad, keysym)
+            del self.pads[e.instance_id]
+        elif e.type == JOYBUTTONDOWN:
+            self.press(pad, pad.keysym(JOY_BUTTON, e.button))
+        elif e.type == JOYBUTTONUP:
+            self.release(pad, pad.keysym(JOY_BUTTON, e.button))
+        elif e.type == JOYAXISMOTION:
+            if e.axis in pad.unknown:
+                pad.unknown.discard(e.axis)
+                if abs(e.value) > AXIS_REST:
+                    pad.rest[e.axis] = e.value      # a trigger, at rest
+                    return
+            offset = e.value - pad.rest.get(e.axis, 0.0)
+            old = pad.axes.get(e.axis, 0)
+            if old and abs(offset) < AXIS_RELEASE or old * offset < 0:
+                self.release(pad, pad.keysym(
+                    JOY_AXIS_POS if old > 0 else JOY_AXIS_NEG, e.axis))
+                old = 0
+            if not old and abs(offset) > AXIS_PRESS:
+                old = 1 if offset > 0 else -1
+                self.press(pad, pad.keysym(
+                    JOY_AXIS_POS if old > 0 else JOY_AXIS_NEG, e.axis))
+            pad.axes[e.axis] = old
+        elif e.type == JOYHATMOTION:
+            old = pad.hats.get(e.hat, (0, 0))
+            for n, (dx, dy) in enumerate(HAT_DIRECTIONS):
+                was = (dx and old[0] == dx) or (dy and old[1] == dy)
+                now = (dx and e.value[0] == dx) or (dy and e.value[1] == dy)
+                if was and not now:
+                    self.release(pad, pad.keysym(JOY_HAT, e.hat * 4 + n))
+                elif now and not was:
+                    self.press(pad, pad.keysym(JOY_HAT, e.hat * 4 + n))
+            pad.hats[e.hat] = tuple(e.value)
+
+    def press(self, pad, keysym):
+        if keysym not in pad.held:
+            pad.held[keysym] = time.monotonic() + REPEAT_DELAY
+            self.key(keysym, KeyPressed)
+
+    def release(self, pad, keysym):
+        if pad.held.pop(keysym, None) is not None:
+            self.key(keysym, KeyReleased)
+
+    def repeat(self):
+        now = time.monotonic()
+        for pad in self.pads.values():
+            for keysym, when in list(pad.held.items()):
+                if now >= when:
+                    pad.held[keysym] = max(when + REPEAT_INTERVAL, now)
+                    self.key(keysym, KeyPressed)
+
+
+class Pad:
+
+    def __init__(self, joystick, slot):
+        self.joystick = joystick    # kept open
+        self.slot = slot            # the same keys after unplug and replug
+        self.held = {}              # {keysym: time of the next repeat}
+        self.axes = {}              # {axis: -1, 0 or 1}
+        self.hats = {}              # {hat: (x, y)}
+        # some axes rest away from 0: triggers often rest at -1.0.  An
+        # axis still at exactly 0.0 may not have reported yet: its first
+        # value says where it rests, if near the end of its range.
+        self.rest = {}
+        self.unknown = set()
+        for axis in range(joystick.get_numaxes()):
+            value = joystick.get_axis(axis)
+            if abs(value) > AXIS_PRESS:
+                self.rest[axis] = value
+            elif value == 0.0:
+                self.unknown.add(axis)
+
+    def keysym(self, kind, number):
+        return JOYKEY_BASE | (self.slot << 16) | (kind << 12) | number
+
+
 def quit_handler(e):
     raise SystemExit
 
@@ -265,7 +415,10 @@ def htmloptionstext(nameval):
     return '''
 <%s> Full Screen (Esc key to exit)</input><%s><br>
 <%s> Draw slightly transparent bubbles</input><%s><br>
+<%s> Controller Input</input><%s><br>
 ''' % (nameval("checkbox", "fullscreen", "yes", default="no"),
        nameval("hidden", "fullscreen", "no"),
        nameval("checkbox", "transparency", "yes", default="yes"),
-       nameval("hidden", "transparency", "no"))
+       nameval("hidden", "transparency", "no"),
+       nameval("checkbox", "controller", "yes", default="yes"),
+       nameval("hidden", "controller", "no"))
