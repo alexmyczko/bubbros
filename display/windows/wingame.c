@@ -595,7 +595,7 @@ static void pack_pixel(DisplayObject* self, unsigned char *data, int r, int g, i
 	  break;
 	}
     case 32:
-      *((long *)data) = (r<<16) | (g<<8) | b;
+      *((unsigned int *)data) = (r<<16) | (g<<8) | b;
       break;
     }
 }
@@ -605,11 +605,11 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
   int w,h;
   Py_ssize_t length;
   unsigned char* input = NULL;
-  long keycol = -1;
+  int keycol = -1;
 
   if (!checkopen(self))
     return NULL;
-  if (!PyArg_ParseTuple(args, "ii|s#l", &w, &h, &input, &length, &keycol))
+  if (!PyArg_ParseTuple(args, "ii|s#i", &w, &h, &input, &length, &keycol))
     return NULL;
 
   if (1)     /* SHM */
@@ -617,7 +617,7 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
       int x, y;
       unsigned char *dst;
       int size, bytes_per_pixel;
-      long packed_keycol = keycol;
+      int packed_keycol = keycol;
       PyObject* result;
       PyObject* str;
 
@@ -655,7 +655,7 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
 	    packed_keycol = keycol;
 	    break;
 	  }
-      result = Py_BuildValue("iiOl", w, h, str, packed_keycol);
+      result = Py_BuildValue("iiOi", w, h, str, packed_keycol);
       Py_DECREF(str);  /* one ref left in 'result' */
       if (!result)
         return NULL;
@@ -729,7 +729,7 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
       int clipx=0, clipy=0, clipw=65536, cliph=65536;
       unsigned char* src;
       Py_ssize_t length;
-      long keycol;
+      int keycol;
       int alpha = 255;
       PyObject* pixmap;
       int bytes_per_pixel = self->screenbmpinfo.bmiHeader.biBitCount/8;
@@ -750,7 +750,7 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
           if (!ok)
             return NULL;
         }
-      if (!PyArg_ParseTuple(pixmap, "iis#l|i", &w, &h, &src, &length,
+      if (!PyArg_ParseTuple(pixmap, "iis#i|i", &w, &h, &src, &length,
                             &keycol, &alpha))
         return NULL;
   
@@ -847,7 +847,7 @@ static PyObject* display_getppm1(DisplayObject* self, PyObject* args)
       str = PyBytes_FromStringAndSize(NULL, length);
       if (!str)
         return NULL;
-      result = Py_BuildValue("iiOl", w, h, str, -1);
+      result = Py_BuildValue("iiOi", w, h, str, -1);
       Py_DECREF(str);  /* one ref left in 'result' */
       if (!result)
         return NULL;
