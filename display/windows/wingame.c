@@ -2,6 +2,8 @@
 #include <Python.h>
 #include <windows.h>
 #include <mmsystem.h>
+#define DIRECTINPUT_VERSION 0x0800
+#include <dinput.h>
 
 
  /************************** DISPLAY PART ***************************/
@@ -13,6 +15,33 @@ typedef struct {
 		short bmiIndices[255];
 	};
 } screenbmp_t;
+
+/* Game controllers: their buttons, sticks and D-pads arrive as keys of
+   their own, which the players choose during key definition like any
+   key (the same numbers as in dpy_pygame.py).  DirectInput: no
+   controller database or mapping. */
+#define MAX_PADS        8
+#define PAD_AXES        8         /* X Y Z Rx Ry Rz, 2 sliders */
+#define PAD_HATS        4
+#define PAD_BUTTONS     128
+#define JOYKEY(slot, kind, n)  (0x20000000 | ((slot) << 16) | ((kind) << 12) | (n))
+enum { JOY_BUTTON, JOY_AXIS_NEG, JOY_AXIS_POS, JOY_HAT };
+#define AXIS_RANGE      1000
+#define AXIS_PRESS      500       /* from the axis' resting position */
+#define AXIS_RELEASE    300
+#define REPEAT_DELAY    500       /* ms, held inputs repeat as keys do */
+#define REPEAT_INTERVAL 770
+
+typedef struct {
+  LPDIRECTINPUTDEVICE8A dev;      /* NULL: a free slot */
+  GUID guid;
+  int polled;                     /* rest[] is known */
+  LONG rest[PAD_AXES];            /* triggers often rest at one end */
+  /* for each input: 0 if not held, else when it repeats next */
+  DWORD axisrep[PAD_AXES][2];     /* negative, positive */
+  DWORD hatrep[PAD_HATS][4];      /* left, right, up, down */
+  DWORD buttonrep[PAD_BUTTONS];
+} pad_t;
 
 typedef struct {
   PyObject_HEAD
@@ -33,6 +62,9 @@ typedef struct {
   WINDOWPLACEMENT wp;     /* the window before going full screen */
   HMENU winmenu;          /* the "Window" submenu */
   WPARAM swallowkeyup;    /* the key that toggled full screen */
+  LPDIRECTINPUT8A dinput;
+  int findpads;           /* look for newly plugged controllers */
+  pad_t pads[MAX_PADS];   /* the slot is part of the key numbers */
 } DisplayObject;
 
 /* the "Window" submenu of the system menu; the 4 low bits of these IDs
@@ -70,8 +102,26 @@ static void release_window_data(DisplayObject* self)
     }
 }
 
+static void close_pads(DisplayObject* self)
+{
+  int i;
+  for (i = 0; i < MAX_PADS; i++)
+    if (self->pads[i].dev)
+      {
+        IDirectInputDevice8_Unacquire(self->pads[i].dev);
+        IDirectInputDevice8_Release(self->pads[i].dev);
+        self->pads[i].dev = NULL;
+      }
+  if (self->dinput)
+    {
+      IDirectInput8_Release(self->dinput);
+      self->dinput = NULL;
+    }
+}
+
 static void display_close(DisplayObject* self)
 {
+  close_pads(self);
   release_window_data(self);
   if (self->win)
     {
@@ -245,6 +295,190 @@ static void add_key_event(DisplayObject* self, WPARAM key, int etype)
   Py_DECREF(v);
 }
 
+static void pad_key(DisplayObject* self, int keysym, DWORD* rep, int down)
+{
+  if (down && !*rep)
+    {
+      *rep = (GetTickCount() + REPEAT_DELAY) | 1;   /* never 0 */
+      add_key_event(self, (WPARAM) keysym, 2);
+    }
+  else if (!down && *rep)
+    {
+      *rep = 0;
+      add_key_event(self, (WPARAM) keysym, 3);
+    }
+}
+
+static void pad_repeat(DisplayObject* self, int keysym, DWORD* rep, DWORD now)
+{
+  if (*rep && (LONG) (now - *rep) >= 0)
+    {
+      *rep = (now + REPEAT_INTERVAL) | 1;
+      add_key_event(self, (WPARAM) keysym, 2);
+    }
+}
+
+static void pad_release_all(DisplayObject* self, int slot)
+{
+  pad_t* pad = &self->pads[slot];
+  int i, n;
+  for (i = 0; i < PAD_AXES; i++)
+    for (n = 0; n < 2; n++)
+      pad_key(self, JOYKEY(slot, JOY_AXIS_NEG + n, i), &pad->axisrep[i][n], 0);
+  for (i = 0; i < PAD_HATS; i++)
+    for (n = 0; n < 4; n++)
+      pad_key(self, JOYKEY(slot, JOY_HAT, i*4 + n), &pad->hatrep[i][n], 0);
+  for (i = 0; i < PAD_BUTTONS; i++)
+    pad_key(self, JOYKEY(slot, JOY_BUTTON, i), &pad->buttonrep[i], 0);
+}
+
+static BOOL CALLBACK add_pad(LPCDIDEVICEINSTANCEA inst, LPVOID context)
+{
+  DisplayObject* self = (DisplayObject*) context;
+  LPDIRECTINPUTDEVICE8A dev;
+  DIPROPRANGE range;
+  int i, slot = -1;
+  for (i = 0; i < MAX_PADS; i++)
+    {
+      if (self->pads[i].dev == NULL)
+        {
+          if (slot < 0)
+            slot = i;
+        }
+      else if (!memcmp(&self->pads[i].guid, &inst->guidInstance, sizeof(GUID)))
+        return DIENUM_CONTINUE;       /* already open */
+    }
+  if (slot < 0)
+    return DIENUM_STOP;
+  if (FAILED(IDirectInput8_CreateDevice(self->dinput, &inst->guidInstance,
+                                        &dev, NULL)))
+    return DIENUM_CONTINUE;
+  if (FAILED(IDirectInputDevice8_SetDataFormat(dev, &c_dfDIJoystick2)) ||
+      FAILED(IDirectInputDevice8_SetCooperativeLevel(dev, self->win,
+                                    DISCL_FOREGROUND | DISCL_NONEXCLUSIVE)))
+    {
+      IDirectInputDevice8_Release(dev);
+      return DIENUM_CONTINUE;
+    }
+  range.diph.dwSize = sizeof(range);
+  range.diph.dwHeaderSize = sizeof(range.diph);
+  range.diph.dwObj = 0;
+  range.diph.dwHow = DIPH_DEVICE;     /* all the axes */
+  range.lMin = -AXIS_RANGE;
+  range.lMax = AXIS_RANGE;
+  IDirectInputDevice8_SetProperty(dev, DIPROP_RANGE, &range.diph);
+  memset(&self->pads[slot], 0, sizeof(pad_t));
+  self->pads[slot].dev = dev;
+  self->pads[slot].guid = inst->guidInstance;
+  return DIENUM_CONTINUE;
+}
+
+static void poll_pad(DisplayObject* self, int slot)
+{
+  pad_t* pad = &self->pads[slot];
+  DIJOYSTATE2 js;
+  LONG axes[PAD_AXES];
+  DWORD now;
+  HRESULT hr;
+  int i, n;
+
+  IDirectInputDevice8_Poll(pad->dev);
+  hr = IDirectInputDevice8_GetDeviceState(pad->dev, sizeof(js), &js);
+  if (hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED)
+    {
+      /* not ours while the window is in the background; unplugged */
+      pad_release_all(self, slot);
+      if (IDirectInputDevice8_Acquire(pad->dev) == (HRESULT) DIERR_UNPLUGGED)
+        {
+          IDirectInputDevice8_Release(pad->dev);
+          pad->dev = NULL;
+        }
+      return;
+    }
+  if (FAILED(hr))
+    return;
+
+  axes[0] = js.lX;  axes[1] = js.lY;  axes[2] = js.lZ;
+  axes[3] = js.lRx; axes[4] = js.lRy; axes[5] = js.lRz;
+  axes[6] = js.rglSlider[0];
+  axes[7] = js.rglSlider[1];
+  if (!pad->polled)
+    {
+      for (i = 0; i < PAD_AXES; i++)
+        if (axes[i] > AXIS_PRESS || axes[i] < -AXIS_PRESS)
+          pad->rest[i] = axes[i];
+      pad->polled = 1;
+    }
+  for (i = 0; i < PAD_AXES; i++)
+    {
+      LONG offset = axes[i] - pad->rest[i];
+      int neg = pad->axisrep[i][0] != 0, pos = pad->axisrep[i][1] != 0;
+      if ((neg && offset > -AXIS_RELEASE) || (pos && offset < AXIS_RELEASE))
+        neg = pos = 0;
+      if (!neg && !pos)
+        {
+          neg = offset < -AXIS_PRESS;
+          pos = offset > AXIS_PRESS;
+        }
+      /* a release before a press, when the stick goes from one side
+         to the other */
+      for (n = 0; n < 2; n++)
+        if (!(n ? pos : neg))
+          pad_key(self, JOYKEY(slot, JOY_AXIS_NEG + n, i), &pad->axisrep[i][n], 0);
+      for (n = 0; n < 2; n++)
+        if (n ? pos : neg)
+          pad_key(self, JOYKEY(slot, JOY_AXIS_NEG + n, i), &pad->axisrep[i][n], 1);
+    }
+  for (i = 0; i < PAD_HATS; i++)
+    {
+      /* hundredths of degrees clockwise from up, or centered */
+      DWORD a = js.rgdwPOV[i];
+      int dir[4] = {0, 0, 0, 0};
+      if (LOWORD(a) != 0xFFFF)
+        {
+          dir[2] = a >= 31500 || a <= 4500;          /* up */
+          dir[1] = a >= 4500 && a <= 13500;          /* right */
+          dir[3] = a >= 13500 && a <= 22500;         /* down */
+          dir[0] = a >= 22500 && a <= 31500;         /* left */
+        }
+      for (n = 0; n < 4; n++)
+        if (!dir[n])
+          pad_key(self, JOYKEY(slot, JOY_HAT, i*4 + n), &pad->hatrep[i][n], 0);
+      for (n = 0; n < 4; n++)
+        if (dir[n])
+          pad_key(self, JOYKEY(slot, JOY_HAT, i*4 + n), &pad->hatrep[i][n], 1);
+    }
+  for (i = 0; i < PAD_BUTTONS; i++)
+    pad_key(self, JOYKEY(slot, JOY_BUTTON, i), &pad->buttonrep[i],
+            (js.rgbButtons[i] & 0x80) != 0);
+
+  now = GetTickCount();
+  for (i = 0; i < PAD_AXES; i++)
+    for (n = 0; n < 2; n++)
+      pad_repeat(self, JOYKEY(slot, JOY_AXIS_NEG + n, i), &pad->axisrep[i][n], now);
+  for (i = 0; i < PAD_HATS; i++)
+    for (n = 0; n < 4; n++)
+      pad_repeat(self, JOYKEY(slot, JOY_HAT, i*4 + n), &pad->hatrep[i][n], now);
+  for (i = 0; i < PAD_BUTTONS; i++)
+    pad_repeat(self, JOYKEY(slot, JOY_BUTTON, i), &pad->buttonrep[i], now);
+}
+
+static void poll_pads(DisplayObject* self)
+{
+  int i;
+  if (!self->dinput)
+    return;
+  if (self->findpads)
+    {
+      self->findpads = 0;
+      IDirectInput8_EnumDevices(self->dinput, DI8DEVCLASS_GAMECTRL, add_pad,
+                                self, DIEDFL_ATTACHEDONLY);
+    }
+  for (i = 0; i < MAX_PADS; i++)
+    if (self->pads[i].dev)
+      poll_pad(self, i);
+}
+
 static int playfield_xy(DisplayObject* self, LPARAM lParam, int* x, int* y)
 {
   /* window coordinates to playfield coordinates; 0 in the black bars */
@@ -377,6 +611,13 @@ static LRESULT CALLBACK display_proc(HWND hwnd, UINT uMsg,
       }
     break;
 
+  case WM_DEVICECHANGE:
+    /* a device was plugged or unplugged: maybe a controller */
+    self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
+    if (self)
+      self->findpads = 1;
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
   case WM_DESTROY:
     self = (DisplayObject*) GetWindowLongPtr(hwnd, 0);
     if (self)
@@ -398,8 +639,9 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
   char* CLASSNAME = "winxshm";
   WNDCLASS wcls;
   DisplayObject* self;
-  int width, height, bytes, bpp, fullscreen=0;
-  if (!PyArg_ParseTuple(args, "ii|i", &width, &height, &fullscreen))
+  int width, height, bytes, bpp, fullscreen=0, controller=1;
+  if (!PyArg_ParseTuple(args, "ii|ii", &width, &height, &fullscreen,
+                        &controller))
     return NULL;
 
   self = PyObject_New(DisplayObject, &Display_Type);
@@ -458,6 +700,13 @@ static PyObject* new_display(PyObject* dummy, PyObject* args)
         AppendMenu(sysmenu, MF_POPUP, (UINT_PTR) self->winmenu, "&Window");
       }
   }
+  if (controller &&
+      FAILED(DirectInput8Create(GetModuleHandle(NULL), DIRECTINPUT_VERSION,
+                                &IID_IDirectInput8A, (void**) &self->dinput,
+                                NULL)))
+    self->dinput = NULL;      /* no controllers, only the keyboard */
+  self->findpads = 1;
+
   update_view(self);
   if (fullscreen)
     set_fullscreen(self, 1);
@@ -896,6 +1145,9 @@ static PyObject* display_keyevents1(DisplayObject* self, PyObject* args)
   PyObject* result;
   ENABLE_EVENTS(KeyPressMask|KeyReleaseMask);
   if (!readXevents(self))
+    return NULL;
+  poll_pads(self);
+  if (PyErr_Occurred())
     return NULL;
   result = self->keyevents;
   if (result == NULL)

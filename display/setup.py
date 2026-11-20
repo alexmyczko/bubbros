@@ -19,7 +19,8 @@ if sys.platform == 'win32':
             author_email="arigo@tunes.org",
             ext_modules=[Extension(name = 'wingame',
                                    sources = ['windows/wingame.c'],
-                                   libraries = ['user32', 'gdi32', 'winmm'])]
+                                   libraries = ['user32', 'gdi32', 'winmm',
+                                                'dinput8', 'dxguid'])]
             )
 else:
     setup ( name="xshm",
