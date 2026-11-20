@@ -188,11 +188,10 @@ class BubBobGame(gamesrv.Game):
                 if self.metastatus != 'unset':
                     print('bb.py: not listed: %s' % metaclient.NOT_SET,
                           file=sys.stderr)
+                metaclient.meta_unregister(self)
                 self.metastatus = 'unset'
-            elif metaclient.meta_register(self):
-                self.metastatus = 'listed'
             else:
-                self.metastatus = 'unreachable'
+                metaclient.meta_register(self)  # sets self.metastatus
             #print('.')
         else:
             try:

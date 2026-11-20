@@ -139,42 +139,27 @@ def str2float(s):
 # Game Servers
 
 class MetaClientSrv(MessageSocket):
-    
+    """A game server's connection to the meta-server.  Registrar reads
+    it and sends on it, in a thread of its own."""
+
     def __init__(self, s, game):
         MessageSocket.__init__(self, s)
         self.game = game
         self.lastwakeup = None
         self.synsockets = {}
-        import gamesrv
-        gamesrv.addsocket('META', s, self.receive)
         self.closed = 0
 
     def close(self):
         if not self.closed:
             self.disconnect()
-            try:
-                self.s.shutdown(2)
-            except:
-                pass
+        try:
+            self.s.close()
+        except error:
+            pass
 
     def disconnect(self):
-        import gamesrv
-        gamesrv.removesocket('META', self.s)
         self.closed = 1
         print('disconnected from the meta-server', file=sys.stderr)
-
-    def send_traceback(self):
-        if not self.closed:
-            import traceback, io, sys
-            f = io.StringIO()
-            print(sys.version, file=f)
-            print('platform:   ', sys.platform, file=f)
-            print('argv:       ', [os.path.basename(a) for a in sys.argv[:1]]
-                  + sys.argv[1:], file=f)
-            print('version tag:', VERSION_TAG, file=f)
-            print(file=f)
-            traceback.print_exc(file = f)
-            self.s.sendall(message(MMSG_TRACEBACK, f.getvalue().encode('utf-8')))
 
     def msg_wakeup(self, origin, *rest):
         if self.lastwakeup is None or time.time()-self.lastwakeup > 4.0:
@@ -346,9 +331,148 @@ class MetaClientSrv(MessageSocket):
         RMSG_PUNCH:   msg_punch,
         }
 
-metaclisrv = None
+RETRY_DELAY = 60.0      # seconds between attempts to reach the meta-server
+
+class Registrar:
+    """A game server's listing on the meta-server, kept up by a thread of
+    its own: the game never waits for the meta-server, and when it cannot
+    be reached, or the connection is lost, the thread tries again."""
+
+    def __init__(self, game):
+        import threading
+        self.game = game
+        self.lock = threading.Lock()
+        self.listing = None     # the latest MMSG_INFO + MMSG_START
+        self.listing_sent = False
+        self.outbox = []        # other messages to send
+        self.stopped = False
+        self.wake_r, self.wake_w = socketpair()
+        threading.Thread(target=self.run, daemon=True).start()
+
+    # ---- in the game's thread ----
+
+    def update(self, listing):
+        with self.lock:
+            self.listing = listing
+            self.listing_sent = False
+        self.wakeup()
+
+    def send(self, data):
+        with self.lock:
+            self.outbox.append(data)
+        self.wakeup()
+
+    def send_traceback(self):
+        import traceback, io
+        f = io.StringIO()
+        print(sys.version, file=f)
+        print('platform:   ', sys.platform, file=f)
+        print('argv:       ', [os.path.basename(a) for a in sys.argv[:1]]
+              + sys.argv[1:], file=f)
+        print('version tag:', VERSION_TAG, file=f)
+        print(file=f)
+        traceback.print_exc(file = f)
+        self.send(message(MMSG_TRACEBACK, f.getvalue().encode('utf-8')))
+
+    def stop(self):
+        self.stopped = True
+        self.wakeup()
+
+    def wakeup(self):
+        try:
+            self.wake_w.send(b'!')
+        except error:
+            pass
+
+    # ---- in the thread ----
+
+    def setstatus(self, status):
+        if metaclisrv is self:
+            self.game.metastatus = status
+
+    def wait(self, delay):
+        """Sleep, unless stopped."""
+        end = time.time() + delay
+        while not self.stopped:
+            left = end - time.time()
+            if left <= 0:
+                break
+            if select([self.wake_r], [], [], left)[0]:
+                self.wake_r.recv(1024)
+
+    def run(self):
+        failed = None
+        next_attempt = time.time()
+        try:
+            while not self.stopped:
+                self.wait(next_attempt - time.time())
+                if self.stopped:
+                    break
+                next_attempt = time.time() + RETRY_DELAY
+                addr = address()
+                if addr is None:
+                    continue
+                try:
+                    s = create_connection(addr[:2], CONNECT_TIMEOUT)
+                    s.settimeout(None)
+                except (error, OSError) as e:
+                    if failed is None:
+                        print('*** cannot reach the meta-server %s:%d: %s '
+                              '(trying again every %d seconds)' % (
+                              addr[:2] + (e, RETRY_DELAY)), file=sys.stderr)
+                    failed = e
+                    self.setstatus('unreachable')
+                    continue
+                failed = None
+                print('connected to the meta-server %s:%d' % addr[:2],
+                      file=sys.stderr)
+                conn = MetaClientSrv(s, self.game)
+                with self.lock:
+                    self.listing_sent = False
+                try:
+                    self.serve(conn)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
+                conn.close()
+                if not self.stopped:
+                    self.setstatus('unreachable')
+        finally:
+            self.wake_r.close()
+            self.wake_w.close()
+
+    def serve(self, conn):
+        while not self.stopped and not conn.closed:
+            with self.lock:
+                data = b''.join(self.outbox)
+                del self.outbox[:]
+                listing = None
+                if not self.listing_sent and self.listing is not None:
+                    listing = self.listing
+                    self.listing_sent = True
+            try:
+                if listing is not None:
+                    conn.s.sendall(listing)
+                    self.setstatus('listed')
+                if data:
+                    conn.s.sendall(data)
+            except error:
+                conn.disconnect()
+                break
+            iwtd, owtd, ewtd = select([conn.s, self.wake_r], [], [])
+            if self.wake_r in iwtd:
+                self.wake_r.recv(1024)
+            if conn.s in iwtd:
+                try:
+                    conn.receive()
+                except error:
+                    conn.disconnect()
+
+metaclisrv = None       # the Registrar of this game server
 
 def meta_register(game):
+    """List the game on the meta-server, or update its listing.  This
+    does not wait: game.metastatus becomes 'listed' or 'unreachable'."""
     global metaclisrv
     import gamesrv
     info = {}
@@ -361,19 +485,15 @@ def meta_register(game):
     port = int(gamesrv.displaysockport(s))
     info['httpport'] = gamesrv.displaysockport(hs)
 
-    if not metaclisrv or metaclisrv.closed:
-        s = connect()
-        if not s:
-            return False
-        metaclisrv = MetaClientSrv(s, game)
-    metaclisrv.s.sendall(message(MMSG_INFO, encodedict(info)) +
-                         message(MMSG_START, port))
-    return True
+    if metaclisrv is None:
+        metaclisrv = Registrar(game)
+    metaclisrv.update(message(MMSG_INFO, encodedict(info)) +
+                      message(MMSG_START, port))
 
 def meta_unregister(game):
     global metaclisrv
     if metaclisrv:
-        metaclisrv.close()
+        metaclisrv.stop()
         metaclisrv = None
 
 
