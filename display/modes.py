@@ -39,12 +39,18 @@ class Mode:
         try:
             return self.__imperror
         except AttributeError:
+            # what the import prints (pygame's banner) goes to stderr
+            # stdout may be a web page being generated (options.html)
+            stdout = sys.stdout
+            sys.stdout = sys.stderr
             try:
                 module = self.getmodule()
             except ImportError:
                 result = 'not installed'
             else:
                 result = hasattr(module, 'imperror') and module.imperror()
+            finally:
+                sys.stdout = stdout
             self.__imperror = result
         return result
 
