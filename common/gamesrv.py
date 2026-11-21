@@ -1433,7 +1433,7 @@ def mainloop():
     if clients:
       print("Server crash -- waiting for clients to terminate...")
       while clients:
-        iwtd = [c.socket for c in clients]
+        iwtd = [c.transport for c in clients]
         try:
           iwtd, owtd, ewtd = select(iwtd, [], iwtd, 120.0)
         except KeyboardInterrupt:
