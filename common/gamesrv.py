@@ -703,7 +703,8 @@ then use the following address:
     p = game.FnPlayers()[id]
     p.setplayername(name.decode('utf-8', 'replace'))
 
-  def set_udp_port(self, port, addr=None, *rest):
+  def set_udp_port(self, port, *rest):
+    # (an older client may send a host too: the frames go to its address)
     if port == MSG_BROADCAST_PORT:
       self.log('set_udp_port: broadcast')
       broadcast_clients[self] = 1
@@ -721,13 +722,10 @@ then use the following address:
         self.sendframe = udpovertcp.SocketMarshaller(self.transport, self).send
         self.log('set_udp_port: udp-over-tcp')
       else:
-        if isinstance(addr, bytes):
-          addr = addr.decode('ascii', 'replace')
-        addr = addr or self.addr[0]
         try:
-          self.transport.open_udp(addr, port)
+          self.transport.open_udp(port)
         except error as e:
-          print("Cannot set UDP socket to", addr, str(e), file=sys.stderr)
+          print("Cannot set UDP socket to port", port, str(e), file=sys.stderr)
           self.sendframe = None
           self.udpsockcounter = sys.maxsize
         else:
@@ -736,8 +734,7 @@ then use the following address:
             self.setup_dyncompress()
           else:
             self.dyncompress = None
-        self.log('set_udp_port: %s %s:%d' % (self.transport.udp_kind,
-                                             addr, port))
+        self.log('set_udp_port: %s %d' % (self.transport.udp_kind, port))
 
   def enable_sound(self, sound_mode=1, *rest):
     if sound_mode != self.has_sound:
@@ -1322,13 +1319,9 @@ class Game:
       print("Too many connections; refusing new connection from", addr)
       conn.close()
     else:
+      print('Connected by', addr)
       try:
-        addrname = (gethostbyaddr(addr[0])[0],) + addr[1:]
-      except:
-        addrname = addr
-      print('Connected by', addrname)
-      try:
-        c = FnClient(conn, addrname)
+        c = FnClient(conn, addr)
       except error as e:
         print('Connexion already lost!', e)
       else:

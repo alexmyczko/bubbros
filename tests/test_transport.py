@@ -75,7 +75,7 @@ class Native(unittest.TestCase):
         # tells it to the server, which sends the frames there
         host, port = self.client.bind_udp()
         self.assertIsNone(self.server.udp_kind)
-        self.server.open_udp('127.0.0.1', port)
+        self.server.open_udp(port)
         self.assertEqual(self.server.udp_kind, 'udp')
         self.assertEqual(self.server.send_udp(b'frame'), 5)
         select.select([self.client.udpsock], [], [], 5)
@@ -119,7 +119,7 @@ class Others(unittest.TestCase):
         self.assertIs(transport.gettransport(t), t)
 
     def test_base_class_has_no_datagrams(self):
-        self.assertRaises(socket.error, Transport().open_udp, 'x', 1)
+        self.assertRaises(socket.error, Transport().open_udp, 1)
 
     def test_broadcast(self):
         t = BroadcastTransport(18999)
@@ -159,7 +159,7 @@ class Endpoint(unittest.TestCase):
             client, server = self.connect()
             host, port = client.bind_udp()
             client.udpsock.connect(client.getpeername())    # the "NAT"
-            server.open_udp('127.0.0.1', port)
+            server.open_udp(port)
             self.assertEqual(server.udp_kind, 'udp')
             server.send_udp(b'frame%d' % i)
             iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
@@ -175,9 +175,9 @@ class Endpoint(unittest.TestCase):
             wrong = port + 1 if port < 65535 else port - 1
             if learn_first:
                 server.learn_udp_peer(('127.0.0.1', port))
-                server.open_udp('127.0.0.1', wrong)
+                server.open_udp(wrong)
             else:
-                server.open_udp('127.0.0.1', wrong)
+                server.open_udp(wrong)
                 server.learn_udp_peer(('127.0.0.1', port))
             server.send_udp(b'frame')
             iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
@@ -227,7 +227,7 @@ class Endpoint(unittest.TestCase):
     def test_closing_a_client_keeps_the_endpoint(self):
         client, server = self.connect()
         host, port = client.bind_udp()
-        server.open_udp('127.0.0.1', port)
+        server.open_udp(port)
         server.close()
         client.send_udp(b'.')       # the endpoint still receives
         select.select([self.endpoint], [], [], 2)
@@ -398,11 +398,11 @@ class FakeTransport(Transport):
     def set_low_delay(self):
         self.low_delay = True
 
-    def open_udp(self, host=None, port=None):
+    def open_udp(self, port):
         if not self.can_open_udp:
             raise socket.error("no datagrams")
         self.udp_kind = 'fake'
-        self.udp_address = host, port
+        self.udp_port = port
 
     def send_udp(self, data):
         self.datagrams.append(data)
@@ -488,7 +488,16 @@ class GameServerClient(unittest.TestCase):
     def test_frames_over_datagrams(self):
         self.ready()
         self.c.receive(message(CMSG_UDP_PORT, 12345))
-        self.assertEqual(self.t.udp_address, ('fake', 12345))
+        self.assertEqual(self.t.udp_port, 12345)
+        self.c.emit(b'sprites', None)
+        self.assertEqual(self.t.datagrams, [b'sprites'])
+
+    def test_a_host_from_the_client_is_ignored(self):
+        # an older client sends a host too: the frames still go to the
+        # address it is connected from
+        self.ready()
+        self.c.receive(message(CMSG_UDP_PORT, 12345, b'203.0.113.9'))
+        self.assertEqual(self.t.udp_port, 12345)
         self.c.emit(b'sprites', None)
         self.assertEqual(self.t.datagrams, [b'sprites'])
 

@@ -70,9 +70,9 @@ class Transport:
 
     # ---- the datagrams ----
 
-    def open_udp(self, host=None, port=None):
-        """Open the datagram channel towards the client, which asked for
-        it with CMSG_UDP_PORT.  Raise socket.error if that is not
+    def open_udp(self, port):
+        """Open the datagram channel towards the client's 'port', which
+        it asked for with CMSG_UDP_PORT.  Raise socket.error if that is not
         possible."""
         raise error("no datagram channel in a %s transport" % self.kind)
 
@@ -149,9 +149,10 @@ class NativeTransport(Transport):
 
     # ---- the datagrams ----
 
-    def open_udp(self, host=None, port=None):
-        """Server side: send the datagrams to the client's port, from
-        the game's UdpEndpoint, or else from a UDP socket of our own."""
+    def open_udp(self, port):
+        """Server side: send the datagrams to this port at the client's
+        address, from the game's UdpEndpoint, or else from a UDP socket
+        of our own."""
         self.close_udp()
         if hasattr(self.sock, 'udp_over_udp_mixer'):
             # for SocketOverUdp: the frames share its UDP socket
@@ -160,14 +161,14 @@ class NativeTransport(Transport):
         elif self.endpoint is not None:
             self.udpsock = self.endpoint
             self.udppeer = (self.learned_udppeer or
-                            (host or self.getpeername()[0], port))
+                            (self.getpeername()[0], port))
             self.udp_kind = 'udp'
             return
         else:
             s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
             try:
                 s.setblocking(0)
-                s.connect((host or self.getpeername()[0], port))
+                s.connect((self.getpeername()[0], port))
             except error:
                 s.close()
                 raise
