@@ -305,10 +305,6 @@ class Pacman:
                         return 1
             return 0
 
-        def give_one_point(dragon):
-            dragon.bubber.displaypoints += 1
-            scoreboard()
-
         dots = self.dots
         ico = images.sprget('pac-dot')
         for x in range(boards.width):
@@ -320,7 +316,6 @@ class Pacman:
                                   'pac-dot', points=-100, falling=0)
                         b.sound = 'Extra'
                         b.timeout = 0
-                        b.taken = give_one_point
                         dots.append(b)
             
             for s in images.ActiveSprites:
