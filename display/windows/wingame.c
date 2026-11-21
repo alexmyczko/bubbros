@@ -74,6 +74,18 @@ typedef struct {
 #define IDM_FULLSCREEN  0x0050
 #define WINDOW_STYLE    WS_OVERLAPPEDWINDOW
 
+/* the largest side of an image, as in common/pixmap.py; it also keeps
+   3*w*h and the buffer sizes in range */
+#define MAX_SIDE        4096
+
+static int bad_size(int w, int h, int least)
+{
+  if (w >= least && h >= least && w <= MAX_SIDE && h <= MAX_SIDE)
+    return 0;
+  PyErr_Format(PyExc_ValueError, "bad image size %dx%d", w, h);
+  return 1;
+}
+
 #define DisplayObject_Check(v)	(Py_TYPE(v) == &Display_Type)
 static PyTypeObject Display_Type;
 
@@ -868,6 +880,8 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
     return NULL;
   if (!PyArg_ParseTuple(args, "ii|s#i", &w, &h, &input, &length, &keycol))
     return NULL;
+  if (bad_size(w, h, 1))
+    return NULL;
 
   if (1)     /* SHM */
     {
@@ -1010,6 +1024,8 @@ static PyObject* display_putppm1(DisplayObject* self, PyObject* args)
       if (!PyArg_ParseTuple(pixmap, "iis#i|i", &w, &h, &src, &length,
                             &keycol, &alpha))
         return NULL;
+      if (bad_size(w, h, 1))
+        return NULL;
   
       scanline = bytes_per_pixel*w;
       if (scanline*h != length)
@@ -1097,6 +1113,8 @@ static PyObject* display_getppm1(DisplayObject* self, PyObject* args)
       unsigned char* data = self->screenfirstline;
       if (!PyArg_ParseTuple(args, "(iiii)|O", &x, &y, &w, &h,
                             &ignored) || !data)
+        return NULL;
+      if (bad_size(w, h, 0))
         return NULL;
 
       scanline = bytes_per_pixel*w;

@@ -58,6 +58,9 @@ static void pixmap_dealloc(XPixmapObject* pm)
 
 static XPixmapObject* new_pixmap(DisplayObject* self, int w, int h, int withmask)
 {
+  /* X has no empty pixmaps: an empty one (an icon clipped away
+     entirely) is 1x1 in X, and copying it copies nothing */
+  int xw = w > 0 ? w : 1, xh = h > 0 ? h : 1;
   XPixmapObject* pm = PyObject_New(XPixmapObject, &XPixmap_Type);
   if (pm != NULL)
     {
@@ -65,10 +68,10 @@ static XPixmapObject* new_pixmap(DisplayObject* self, int w, int h, int withmask
       pm->dpy = self;
       pm->width = w;
       pm->height = h;
-      pm->handle = XCreatePixmap(self->dpy, self->win, w, h,
+      pm->handle = XCreatePixmap(self->dpy, self->win, xw, xh,
                                  self->visual_info.depth);
       if (withmask)
-        pm->mask = XCreatePixmap(self->dpy, self->win, w, h,
+        pm->mask = XCreatePixmap(self->dpy, self->win, xw, xh,
                                  self->visual_info.depth);
       else
         pm->mask = (Pixmap) -1;
@@ -76,6 +79,18 @@ static XPixmapObject* new_pixmap(DisplayObject* self, int w, int h, int withmask
   return pm;
 }
 
+
+/* the largest side of an image, as in common/pixmap.py; it also keeps
+   3*w*h and the 16-bit block widths in range */
+#define MAX_SIDE        4096
+
+static int bad_size(int w, int h, int least)
+{
+  if (w >= least && h >= least && w <= MAX_SIDE && h <= MAX_SIDE)
+    return 0;
+  PyErr_Format(PyExc_ValueError, "bad image size %dx%d", w, h);
+  return 1;
+}
 
 static void flush(DisplayObject* self)
 {
@@ -345,6 +360,8 @@ static PyObject* display_pixmap1(DisplayObject* self, PyObject* args)
   if (!checkopen(self))
     return NULL;
   if (!PyArg_ParseTuple(args, "ii|s#i", &w, &h, &input, &length, &keycol))
+    return NULL;
+  if (bad_size(w, h, 1))
     return NULL;
 
   if (self->shmmode)
@@ -787,6 +804,8 @@ static PyObject* display_overlay(DisplayObject* self, PyObject* args,
                             &x, &y, &w, &h, &src, &length1, &srcdata, &length2,
                             &clipx, &clipy, &clipw, &cliph, &alpha) || !data)
         return NULL;
+      if (bad_size(w, h, 1))
+        return NULL;
 
       original_x = x;
       original_y = y;
@@ -1008,6 +1027,8 @@ static PyObject* display_getppm1(DisplayObject* self, PyObject* args)
   if (!checkopen(self))
     return NULL;
   if (!PyArg_ParseTuple(args, "(iiii)", &x, &y, &w, &h))
+    return NULL;
+  if (bad_size(w, h, 0))
     return NULL;
   return display_get(self, x, y, w, h);
 }
