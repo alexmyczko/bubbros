@@ -737,57 +737,23 @@ def schedule_launch(args):
 
 def launch(args):
     global client_pid
-    # platform-specific hacks
     print('Running client ->  ', ' '.join(args))
-    if 0:  # OLD CODE sys.platform == 'darwin':   # must start as a UI process
-        import tempfile
-        cmdname = tempfile.mktemp('_BubBob.py')
-        f = open(cmdname, 'w')
-        print('import sys, os', file=f)
-        print('try: os.unlink(%r)' % cmdname, file=f)
-        print('except OSError: pass', file=f)
-        print('sys.argv[:] = %r' % (args,), file=f)
-        print('__file__ = %r' % cmdname, file=f)
-        print('execfile(%r)' % args[0], file=f)
-        f.close()
-        os.system('/usr/bin/open -a PythonLauncher "%s"' % cmdname)
-    else:
-        args.insert(0, sys.executable)
-        # try to close the open fds first
-        if hasattr(os, 'fork'):
-            try:
-                from resource import getrlimit, RLIMIT_NOFILE, error
-            except ImportError:
-                pass
-            else:
-                try:
-                    soft, hard = getrlimit(RLIMIT_NOFILE)
-                except error:
-                    pass
-                else:
-                    pid = os.fork()
-                    if pid:
-                        client_pid = pid
-                        return # in parent -- done, continue
-                    # in child
-                    for fd in range(3, min(16384, hard)):
-                        try:
-                            os.close(fd)
-                        except OSError:
-                            pass
-                    os.execv(args[0], args)
-                    # this point should never be reached
-        # fall-back
+    args.insert(0, sys.executable)
+    if hasattr(os, 'posix_spawn'):
+        client_pid = os.posix_spawn(sys.executable, args, os.environ)
+        return
+    # fall-back
+    if sys.platform == 'win32':
         # (quoting sucks on Windows) ** 42
-        if sys.platform == 'win32':
-            args[0] = '"%s"' % (args[0],)
-        if hasattr(os, 'P_DETACH'):
-            mode = os.P_DETACH
-        elif hasattr(os, 'P_NOWAIT0'):
-            mode = os.P_NOWAIT0
-        else:
-            mode = os.P_NOWAIT
-        os.spawnv(mode, sys.executable, args)
+        args[0] = '"%s"' % (args[0],)
+    if hasattr(os, 'P_DETACH'):
+        os.spawnv(os.P_DETACH, sys.executable, args)
+        return
+    if hasattr(os, 'P_NOWAITO'):
+        mode = os.P_NOWAITO
+    else:
+        mode = os.P_NOWAIT
+    client_pid = os.spawnv(mode, sys.executable, args)
 
 if sys.platform != "win32":
     def no_quote_worries(s):

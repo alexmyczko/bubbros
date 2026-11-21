@@ -1143,7 +1143,7 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
   s = findsocket('HTTP')
   if s is None:
     if ServerClass is None:
-      from http.server import HTTPServer as ServerClass
+      from httpserver import ThreadedServer as ServerClass
     if HandlerClass is None:
       import javaserver
       from httpserver import MiniHandler as HandlerClass
@@ -1164,7 +1164,10 @@ def openhttpsocket(ServerClass=None, HandlerClass=None,
       else:
         raise
     s = httpd.socket
-    addsocket('HTTP', s, httpd.handle_request)
+    addsocket('HTTP', s)
+    import httpserver
+    caller = httpserver.serve_in_threads(httpd)
+    addsocket('HTTPLOOP', caller.wakesock, caller.run_pending, port=0)
   return s
 
 BROADCAST_PORT_RANGE = range(18000, 19000)

@@ -3,7 +3,7 @@
 import http.server
 from http.server import SimpleHTTPRequestHandler
 import urllib.parse, html.entities
-import sys, os, time
+import sys, os, time, threading, queue, socket, socketserver
 from io import StringIO
 
 
@@ -110,6 +110,7 @@ def load(filename, mimetype=None, locals=None):
 def fileloader(filename, mimetype=None):
     def loader(**options):
         return load(filename, mimetype)
+    loader.static = True        # only sends the file: not in the main loop
     return loader
 
 class HTTPRequestError(Exception):
@@ -134,8 +135,7 @@ def is_local_request(client_address, headers):
     return name in LOCAL_HOSTS
 
 class MiniHandler(SimpleHTTPRequestHandler):
-    # a connection that sends nothing must not hang the single-threaded
-    # server (the game loop, or the meta-server) for ever
+    # a connection that sends nothing must not keep its thread for ever
     timeout = 10
 
     def send_head(self, query=''):
@@ -176,7 +176,10 @@ class MiniHandler(SimpleHTTPRequestHandler):
             # computer?  (also ours, same as above)
             del hdr['X-Local-Request']
             hdr['X-Local-Request'] = local and 'yes' or 'no'
-            f, ctype = loader(headers=hdr, **kwds)
+            if getattr(loader, 'static', False):
+                f, ctype = loader(headers=hdr, **kwds)
+            else:
+                f, ctype = self.in_loop(lambda: loader(headers=hdr, **kwds))
         except IOError as e:
             self.send_error(404, "I/O error: " + str(e))
             return None
@@ -228,9 +231,14 @@ Please <a href="%s">click here</a> to continue.
 
     def copyfile(self, source, outputfile):
         # The loaders return text (templates, StringIO) or binary files,
-        # but the socket only takes bytes.
+        # but the socket only takes bytes.  A template runs its code part
+        # by part as it is read: in the main loop, like the loader.
+        if isinstance(source, TranslatorIO):
+            read = lambda size: self.in_loop(lambda: source.read(size))
+        else:
+            read = source.read
         while True:
-            data = source.read(16384)
+            data = read(16384)
             if not data:
                 break
             if isinstance(data, str):
@@ -244,10 +252,90 @@ Please <a href="%s">click here</a> to continue.
     def finish(self):
         SimpleHTTPRequestHandler.finish(self)
         self.connection.close()
-        while actions_when_finished:
-            actions_when_finished.pop(0)()
+        self.in_loop(run_actions_when_finished)
+
+    def in_loop(self, fn):
+        caller = getattr(self.server, 'loop_caller', None)
+        if caller is None:
+            return fn()
+        return caller.call(fn)
 
 actions_when_finished = []
+
+def run_actions_when_finished():
+    while actions_when_finished:
+        actions_when_finished.pop(0)()
+
+# ____________________________________________________________
+# The HTTP server runs in threads of its own (see serve_in_threads()), so
+# that a slow or idle browser does not hold up the game or the
+# meta-server; the page loaders still run in the main loop, which owns
+# the state that they read and change, except the ones that only send a
+# file (see fileloader()).
+
+class LoopCaller:
+    """Runs functions for other threads in a select() loop: the loop
+    selects 'wakesock' for reading, and then calls run_pending()."""
+
+    def __init__(self):
+        self.wakesock, self.waker = socket.socketpair()
+        self.wakesock.setblocking(False)
+        self.pending = queue.Queue()
+        self.loop_thread = threading.current_thread()
+
+    def call(self, fn):
+        if threading.current_thread() is self.loop_thread:
+            return fn()
+        done = threading.Event()
+        result = []
+        self.pending.put((fn, done, result))
+        try:
+            self.waker.send(b'x')
+        except OSError:
+            pass
+        done.wait()
+        ok, value = result[0]
+        if ok:
+            return value
+        raise value
+
+    def run_pending(self):
+        try:
+            while self.wakesock.recv(4096):
+                pass
+        except OSError:
+            pass
+        while True:
+            try:
+                fn, done, result = self.pending.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                result.append((True, fn()))
+            except BaseException as e:
+                result.append((False, e))
+            done.set()
+
+class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    MAX_THREADS = 128
+
+    def process_request(self, request, client_address):
+        if threading.active_count() > self.MAX_THREADS:
+            self.shutdown_request(request)       # too many connections
+        else:
+            socketserver.ThreadingMixIn.process_request(
+                self, request, client_address)
+
+def serve_in_threads(httpd):
+    """Serve 'httpd' (a ThreadedServer) from now on, with the page
+    loaders in the calling thread's loop: it must select the returned
+    LoopCaller's wakesock, and call its run_pending()."""
+    httpd.loop_caller = LoopCaller()
+    t = threading.Thread(target=httpd.serve_forever, name='HTTP server')
+    t.daemon = True
+    t.start()
+    return httpd.loop_caller
 
 def my_host():
     import gamesrv
