@@ -51,24 +51,40 @@ Valid drivers are:
 
 .RS
 .TP
-.B X
-X Window driver for Linux and Unix systems with an X server
-running. See the 
-.B --shm
-option.
-.TP
 .B windows
-MS Windows driver.
+MS Windows driver. See the
+.BR --fullscreen ", " --transparency " and " --controller " options."
 .TP
 .B pygame
-PyGame gaming library for python (if installed) has video output. Use
-it if this is specified. See
-.BR http://www.pygame.org " and the " --transparency " option."
+The PyGame library (if installed), on all platforms. See
+.BR http://www.pygame.org " and the " --fullscreen ", " --transparency
+and
+.B --controller
+options.
 .TP
 .B gtk
-Use the PyGTK library (if installed). See
-.BR http://www.pygtk.org/ " and the " --zoom " option."
+GTK 3 through PyGObject (if installed). See
+.BR https://pygobject.gnome.org/ " and the " --zoom " option."
+.TP
+.B X
+X Window driver for Linux and Unix systems with an X server
+running. See the
+.B --shm
+option.
 .RE
+
+.TP
+.B --controller=yes, --controller=no
+This option concerns only the
+.BR pygame " and " windows
+display drivers. Enable or disable the game controller input. Enabled
+by default.
+
+.TP
+.B --fullscreen=yes
+This option concerns only the
+.BR pygame " and " windows
+display drivers. Go full screen (the Esc key exits it).
 
 .TP
 .B -h, --help
@@ -93,15 +109,24 @@ audio drivers. Set mixing frequency to
 
 .TP
 .B -m, --metaserver
-Connect with the help of the Metaserver (see 
+Connect with the help of the meta-server, set with the environment
+variable
+.B BUBBROS_METASERVER
+=
+.IR host [: port [: httpport ]]
+(see
 .BR bb.py (1)
 for more info).  Run
 .I Client.py -m
 to print a table of currently running servers, pick the
-the exact IP address and port of the server of your choice
+exact IP address and port of the server of your choice
 from the table, and run again
 .I Client.py -m
 .BR host:port .
+
+.TP
+.B --music=no
+Disable the background music.
 
 .TP
 .BI "--port TCP=" port
@@ -147,7 +172,7 @@ Use the linux audio mixer. See the
 .TP
 .B windows
 Use the Windows audio mixer. See the
-.BR --freq " and " --bits "options."
+.BR --freq " and " --bits " options."
 
 .TP
 .B off
@@ -165,25 +190,27 @@ display driver.  Disable or enable the
 disabled for remote X connections and old X servers.
 
 .TP
-.B -t
-Use the
+.B -t, --tcp
+Send the animation data over the
 .B TCP
-protocol. The default is to autodetect the protocol. See the
+connection, for slow or proxy connections. The default is to
+autodetect the protocol. See the
 .B -u
 option.
 
 .TP
 .B --transparency=yes, --transparency=no
-This option concerns only the 
-.B pygame
-display driver. Disable or enable transparent bubbles. Enabled by
-default. Disabling makes game a bit faster.
+This option concerns only the
+.BR pygame " and " windows
+display drivers. Disable or enable transparent bubbles. Enabled by
+default. Disabling makes the game a bit faster.
 
 .TP
-.B -u
-Use the
-.B UDP
-protocol. The default is to autodetect the protocol. See the
+.B -u, --udp
+Send the animation data over
+.BR UDP ,
+for fast direct connections, and never fall back to TCP. The default is
+to autodetect the protocol. See the
 .B -t
 option.
 
@@ -196,5 +223,5 @@ display driver. Scale output by
 
 .SH SEE ALSO
 .BR bb.py (1)
-.BR Client.py (1)
+.BR BubBob.py (1)
 .BR python (1)
