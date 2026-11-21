@@ -228,6 +228,9 @@ class Playfield:
                 self.processkeys()
             if self.s in iwtd:
                 inputdata = self.transport.recv_tcp(0x6000)
+                if not inputdata and self.transport.at_eof():
+                    print("Disconnected by the server.")
+                    return
                 self.tcpbytecounter += len(inputdata)
                 inbuf += inputdata
                 inbuf = self.process_inbuf(inbuf)
