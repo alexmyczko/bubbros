@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 import unittest
+from unittest import mock
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'common')]
@@ -536,6 +537,18 @@ class GameServerClient(unittest.TestCase):
         self.assertIsNone(self.c.transport)
         self.assertTrue(self.t.closed)
         self.assertNotIn(self.c, gamesrv.clients)
+
+    def test_bad_messages_disconnect_only_that_client(self):
+        bad = [message(CMSG_ADD_PLAYER, b'x'),           # not a player id
+               message(CMSG_DATA_REQUEST, 9999, 0, 10),  # no such file
+               b'\x02\xff\xfe',                         # not type codes
+               b'\x04\xc9999999s']                      # 1 MB and more
+        for data in bad:
+            self.setUp()
+            with mock.patch('traceback.print_exc'):
+                self.c.receive(data)
+            self.assertIsNone(self.c.transport, data)
+            self.assertNotIn(self.c, gamesrv.clients)
 
 
 if __name__ == '__main__':

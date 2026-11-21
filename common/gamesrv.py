@@ -604,7 +604,8 @@ class Client:
         else:
           print("unknown message from", self.addr, ":", values)
       self.buf = data
-    except struct.error:
+    except Exception:
+      # any message that we cannot take: only this client goes
       import traceback
       traceback.print_exc()
       try:
