@@ -5,6 +5,8 @@ Adopt from sf.net Bub n Bros for port to Python3
 
 Original: http://bub-n-bros.sourceforge.net
 
+Matrix: https://matrix.to/#/%23bub-n-bros%3Amatrix.org
+
 The game now runs on Python 3. The server, the clients and the
 metaserver use the same network protocol as version 1.6.2, so old
 Python 2 clients and servers can still play with the new ones.
