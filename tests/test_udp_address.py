@@ -4,6 +4,7 @@ the meta-server that address is the one seen from outside.  No network."""
 import os
 import sys
 import unittest
+from unittest import mock
 from socket import socket, AF_INET, SOCK_DGRAM
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
@@ -73,6 +74,118 @@ class UdpAddress(unittest.TestCase):
         pf.update_sprites = seen.append
         pf.udp_control(msgstruct.datagram(msgstruct.message(b'?', 1)))
         self.assertEqual(seen, [])
+
+
+class FallbackToTcp(unittest.TestCase):
+    # msg_ping(): the frames go into the TCP stream when less than 60% of
+    # the UDP bytes came in, three pings in a row, unless 90% came in
+    # since the last ping; frames every 50 ms, pings as the server sends
+    # them (once a kbyte is sent, then 0.8 s later, 0.2 s more each time,
+    # up to 2.4 s); 'old' servers send whole kbytes only
+
+    def setUp(self, old=False):
+        pf = self.pf = pclient.Playfield.__new__(pclient.Playfield)
+        pf.transport = mock.Mock()
+        pf.checkcfgfile = lambda: None
+        pf.initlevel = 1
+        pf.udpsock_low = 0
+        pf.udpbytecounter = 0
+        pf.udpwindow = [(0, 0)]
+        pf.udppings = 0
+        self.fallback = None
+        def start_udp_over_tcp():
+            self.fallback = self.now
+            pf.udpsock_low = None
+        pf.start_udp_over_tcp = start_udp_over_tcp
+        self.old = old
+        self.now = 0.0
+        self.sent = 0           # bytes, as the server counts them
+        self.lastping = 0.0
+        self.delay = 0.6
+
+    def play(self, seconds, rate=3.5, lost=lambda t: False):
+        # 'rate' kbytes per second; 'lost(t)': the frame at t is lost
+        end = self.now + seconds
+        frame = int(rate * 1024 * 0.05)
+        while self.now < end - 1e-9 and self.fallback is None:
+            self.now = round(self.now + 0.05, 2)
+            self.sent += frame
+            if not lost(self.now):
+                self.pf.udpbytecounter += frame
+            if (self.now - self.lastping > self.delay + 1e-9 and
+                    self.sent >= 1024):
+                values = (self.sent >> 10,)
+                if not self.old:
+                    values += (self.sent & 1023,)
+                with mock.patch('builtins.print'):
+                    self.pf.msg_ping(*values)
+                self.lastping = self.now
+                self.delay = min(self.delay + 0.2, 2.4)
+
+    def both(self):
+        for old in (False, True):
+            self.setUp(old)
+            yield old
+
+    def test_nothing_ever_received(self):
+        for old in self.both():
+            self.play(10, lost=lambda t: True)
+            # 0.6 s after connecting (the 1st kbyte was at 0.3 s), then
+            # 0.8 s and 1.0 s later
+            self.assertAlmostEqual(self.fallback, 2.55, msg=old)
+
+    def test_nothing_received_from_a_slow_start(self):
+        # whole kbytes: the first pings may say the same one, which says
+        # nothing (neither a strike nor a recovery)
+        self.setUp(old=True)
+        self.play(2.9, rate=0.5, lost=lambda t: True)
+        pings = self.pf.udppings
+        self.play(10, lost=lambda t: True)
+        self.assertEqual(pings, 2)      # at 2.05 and 2.9 s: 1 kbyte each
+        # strikes at the 1st, 3rd and 4th ping
+        self.assertAlmostEqual(self.fallback, 5.2, delta=0.06)
+
+    def test_blackout(self):
+        for old in self.both():
+            for start in (0.0, 0.5, 1.2, 2.0):  # where between two pings
+                self.setUp(old)
+                self.play(300 + start)
+                begin = self.now
+                self.play(60, lost=lambda t: True)
+                self.assertTrue(12 <= self.fallback - begin <= 15.5,
+                                (old, start, self.fallback - begin))
+
+    def test_blackout_that_ends(self):
+        for old in self.both():
+            for rate in (3.5, 2.7, 0.8):
+                for start in (0.0, 0.35, 0.9, 1.6):
+                    for length in (5, 7, 9, 10):
+                        self.setUp(old)
+                        self.play(300 + start, rate=rate)
+                        end = self.now + length
+                        self.play(120, rate=rate, lost=lambda t: t <= end)
+                        self.assertIsNone(self.fallback,
+                                          (old, rate, start, length))
+
+    def test_steady_loss(self):
+        for old in self.both():
+            self.play(600, lost=lambda t: int(t * 20) % 10 < 3)     # 30%
+            self.assertIsNone(self.fallback, old)
+            self.setUp(old)
+            self.play(600, lost=lambda t: int(t * 20) % 2 == 0)     # 50%
+            self.assertIsNotNone(self.fallback, old)
+
+    def test_slow_game(self):
+        for old in self.both():
+            self.play(600, rate=0.8)
+            self.assertIsNone(self.fallback, old)
+            begin = self.now
+            self.play(60, rate=0.8, lost=lambda t: True)
+            self.assertTrue(12 <= self.fallback - begin <= 15.5, old)
+
+    def test_window_size(self):
+        self.play(300)
+        self.assertEqual(len(self.pf.udpwindow), 9)     # 8 ping spacings
 
 if __name__ == '__main__':
     unittest.main()

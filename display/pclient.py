@@ -16,8 +16,15 @@ import caching
 #import psyco; psyco.full()
 
 # switch to udp_over_tcp if the udp socket didn't receive at least 60% of
-# the packets sent by the server
+# the packets sent by the server, three pings in a row (the server pings
+# once it sent a kbyte, then 0.8 s later, 0.2 s more each time, up to
+# 2.4 s): counted from the start for 12 pings (~19.5 s), then over the
+# last 10, 9, and from then on 8 pings (19.2 s); 90% received since the
+# last ping is a recovery, and a ping without anything new sent says
+# nothing
 UDP_EXPECTED_RATIO = 0.60
+UDP_RECOVERED_RATIO = 0.90
+UDP_WINDOW = (12, 10, 9, 8)
 
 
 def loadpixmap(dpy, data, colorkey=None):
@@ -172,6 +179,9 @@ class Playfield:
         self.accepted_broadcast = 0
         self.tcpbytecounter = 0
         self.udpbytecounter = 0
+        # (sent by the server, received) at the start and at the pings
+        self.udpwindow = [(0, 0)]
+        self.udppings = 0
         if udp_over_tcp == 1:
             self.start_udp_over_tcp()
         else:
@@ -875,16 +885,33 @@ class Playfield:
             udpkbytes = rest[0]
             if not udpkbytes:
                 return
-            #inp = self.udpbytecounter / (udpkbytes*1024.0)
-            #print "(%d%% packet loss)" % int(100*(1.0-inp))
-            if (udpkbytes<<10) * UDP_EXPECTED_RATIO > self.udpbytecounter:
+            # the bytes sent, as kbytes and the bytes left over (whole
+            # kbytes only from an older server)
+            if len(rest) > 1:
+                total = (udpkbytes << 10) | rest[1]
+            else:
+                total = udpkbytes << 10
+            window = self.udpwindow
+            window.append((total, self.udpbytecounter))
+            self.udppings += 1
+            if self.udppings >= UDP_WINDOW[0]:
+                keep = UDP_WINDOW[min(self.udppings - UDP_WINDOW[0],
+                                      len(UDP_WINDOW) - 1)]
+                del window[:-keep-1]
+            sent = window[-1][0] - window[0][0]
+            received = window[-1][1] - window[0][1]
+            lastsent = window[-1][0] - window[-2][0]
+            lastreceived = window[-1][1] - window[-2][1]
+            recovered = lastreceived >= lastsent * UDP_RECOVERED_RATIO
+            if lastsent <= 0:
+                pass        # nothing new sent: says nothing
+            elif sent * UDP_EXPECTED_RATIO > received and not recovered:
                 # too many packets were dropped (including, maybe, all of them)
                 self.udpsock_low += 1
                 if self.udpsock_low >= 3 and self.initlevel >= 1:
                     # third time now -- that's too much
                     print("Note: routing UDP traffic over TCP", end=' ')
-                    inp = self.udpbytecounter / (udpkbytes*1024.0)
-                    print("(%d%% packet loss)" % int(100*(1.0-inp)))
+                    print("(%d%% packet loss)" % int(100*(1.0-received/sent)))
                     self.start_udp_over_tcp()
                     self.transport.sendall_tcp(message(CMSG_UDP_PORT, MSG_INLINE_FRAME))
             else:

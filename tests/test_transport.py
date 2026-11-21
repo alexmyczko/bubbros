@@ -502,6 +502,40 @@ class GameServerClient(unittest.TestCase):
         self.c.emit(b'sprites', None)
         self.assertEqual(self.t.datagrams, [b'sprites'])
 
+    def pings(self, seconds, step=0.05):
+        # the times and values of the pings sent by emit() every 'step's
+        result = []
+        end = gamesrv.NOW + seconds
+        while gamesrv.NOW < end:
+            gamesrv.NOW += step
+            self.c.emit(b'', None)
+            for values in self.messages():
+                if values[0] == MSG_PING:
+                    result.append((gamesrv.NOW,) + tuple(values[1:]))
+        return result
+
+    def test_pings_after_the_first_kbyte(self):
+        self.ready()
+        self.c.last_ping = gamesrv.NOW
+        self.assertEqual(self.pings(5), [])        # no frames sent yet
+        self.c.udpsockcounter = 5000               # 4 kbytes and 904 bytes
+        pings = self.pings(40)
+        self.assertEqual({p[1:] for p in pings}, {(4, 904)})
+        times = [t for t, kb, rest in pings]
+        spacings = [b - a for a, b in zip(times, times[1:])]
+        expected = [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.4, 2.4]
+        for got, want in zip(spacings, expected):
+            self.assertAlmostEqual(got, want, delta=0.051)
+
+    def test_broadcast_clients_get_0(self):
+        self.ready()
+        gamesrv.broadcast_clients[self.c] = 1
+        self.addCleanup(gamesrv.broadcast_clients.pop, self.c, None)
+        self.c.udpsockcounter = 5000
+        pings = self.pings(20)
+        self.assertTrue(pings)
+        self.assertEqual({p[1:] for p in pings}, {(0,)})
+
     def test_frames_in_the_stream(self):
         import zlib
         self.ready()
@@ -525,7 +559,7 @@ class GameServerClient(unittest.TestCase):
         self.assertEqual(self.t.datagrams, [])
         # the client is told that it missed everything, in a message
         # that still fits (it then asks for the frames in the stream)
-        self.assertIn((MSG_PING, 0x7FFFFFFF), self.messages())
+        self.assertIn((MSG_PING, 0x7FFFFFFF, 1023), self.messages())
 
     def test_input_and_disconnect(self):
         self.t.w.send(message(CMSG_PROTO_VERSION, 3))

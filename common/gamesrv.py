@@ -424,7 +424,7 @@ class Player:
 
 class Client:
   SEND_BOUND_PER_FRAME = 0x6000   # bytes
-  KEEP_ALIVE           = 2.2      # seconds
+  MAX_PING_DELAY       = 2.4      # seconds
 
   def __init__(self, conn, addr):
     # 'conn' is a Transport (see transport.py) or a connected socket
@@ -461,8 +461,9 @@ class Client:
       self.initialdata += game.deffieldmsg()
     else:
       self.msgl.append(game.deffieldmsg())
-    self.activity = self.last_ping = time()
-    self.force_ping_delay = 0.6
+    #self.activity = time()
+    self.last_ping = time()
+    self.ping_delay = 0.6
     for c in clients:
       for id in list(c.players.keys()):
         self.msgl.append(message(MSG_PLAYER_JOIN, id, c is self))
@@ -499,17 +500,23 @@ class Client:
       if self.has_music > 1 and NOW >= self.musicstreamer:
         self.musicstreamer += 0.99
         self.sendmusicdata()
-      if not self.msgl:
-        if abs(NOW - self.activity) <= self.KEEP_ALIVE:
-          if abs(NOW - self.last_ping) <= self.force_ping_delay:
-            return
-          if self.udpsockcounter < 1024:
-            return
-          self.force_ping_delay += 0.2
-        # (the counter is sys.maxsize when the frames cannot be sent)
-        self.msgl.append(message(MSG_PING,
-                                 min(self.udpsockcounter>>10, 0x7FFFFFFF)))
+      # a ping once the first kbyte of frames is sent, then 0.8 s later,
+      # 0.2 s more each time, up to 2.4 s, with the bytes of frames sent
+      # to this client as kbytes and the bytes left over (see msg_ping()
+      # in pclient.py); 0 to a broadcast client, whose frames go to all
+      # of them at once
+      if not self.msgl and abs(NOW - self.last_ping) > self.ping_delay:
+        if self in broadcast_clients:
+          self.msgl.append(message(MSG_PING, 0))
+        elif self.udpsockcounter >= 1024:
+          # (the counter is sys.maxsize when the frames cannot be sent)
+          self.msgl.append(message(MSG_PING,
+                                   min(self.udpsockcounter>>10, 0x7FFFFFFF),
+                                   self.udpsockcounter & 1023))
+        else:
+          return
         self.last_ping = NOW
+        self.ping_delay = min(self.ping_delay + 0.2, self.MAX_PING_DELAY)
 
   def setup_dyncompress(self):
     def dyncompress():
@@ -582,7 +589,7 @@ class Client:
     else:
       #g = open('log', 'ab'); g.write(buffer[:count]); g.close()
       buffer = buffer[count:]
-      self.activity = NOW
+      #self.activity = NOW
     if self.initialdata:
       self.initialdata = buffer
     elif buffer:
@@ -630,7 +637,7 @@ then use the following address:
       self.disconnect(e, "socket.recv")
     else:
       if data:
-        self.activity = NOW
+        #self.activity = NOW
         self.receive(data)
       elif self.transport.at_eof():
         self.disconnect('end of data', 'socket.recv')
