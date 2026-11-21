@@ -424,7 +424,7 @@ class Player:
 
 class Client:
   SEND_BOUND_PER_FRAME = 0x6000   # bytes
-  KEEP_ALIVE           = 2.2      # seconds
+  MAX_PING_DELAY       = 2.4      # seconds
 
   def __init__(self, conn, addr):
     # 'conn' is a Transport (see transport.py) or a connected socket
@@ -461,8 +461,9 @@ class Client:
       self.initialdata += game.deffieldmsg()
     else:
       self.msgl.append(game.deffieldmsg())
-    self.activity = self.last_ping = time()
-    self.force_ping_delay = 0.6
+    #self.activity = time()
+    self.last_ping = time()
+    self.ping_delay = 0.6
     for c in clients:
       for id in list(c.players.keys()):
         self.msgl.append(message(MSG_PLAYER_JOIN, id, c is self))
@@ -499,17 +500,23 @@ class Client:
       if self.has_music > 1 and NOW >= self.musicstreamer:
         self.musicstreamer += 0.99
         self.sendmusicdata()
-      if not self.msgl:
-        if abs(NOW - self.activity) <= self.KEEP_ALIVE:
-          if abs(NOW - self.last_ping) <= self.force_ping_delay:
-            return
-          if self.udpsockcounter < 1024:
-            return
-          self.force_ping_delay += 0.2
-        # (the counter is sys.maxsize when the frames cannot be sent)
-        self.msgl.append(message(MSG_PING,
-                                 min(self.udpsockcounter>>10, 0x7FFFFFFF)))
+      # a ping once the first kbyte of frames is sent, then 0.8 s later,
+      # 0.2 s more each time, up to 2.4 s, with the bytes of frames sent
+      # to this client as kbytes and the bytes left over (see msg_ping()
+      # in pclient.py); 0 to a broadcast client, whose frames go to all
+      # of them at once
+      if not self.msgl and abs(NOW - self.last_ping) > self.ping_delay:
+        if self in broadcast_clients:
+          self.msgl.append(message(MSG_PING, 0))
+        elif self.udpsockcounter >= 1024:
+          # (the counter is sys.maxsize when the frames cannot be sent)
+          self.msgl.append(message(MSG_PING,
+                                   min(self.udpsockcounter>>10, 0x7FFFFFFF),
+                                   self.udpsockcounter & 1023))
+        else:
+          return
         self.last_ping = NOW
+        self.ping_delay = min(self.ping_delay + 0.2, self.MAX_PING_DELAY)
 
   def setup_dyncompress(self):
     def dyncompress():
@@ -582,7 +589,7 @@ class Client:
     else:
       #g = open('log', 'ab'); g.write(buffer[:count]); g.close()
       buffer = buffer[count:]
-      self.activity = NOW
+      #self.activity = NOW
     if self.initialdata:
       self.initialdata = buffer
     elif buffer:
@@ -604,7 +611,8 @@ class Client:
         else:
           print("unknown message from", self.addr, ":", values)
       self.buf = data
-    except struct.error:
+    except Exception:
+      # any message that we cannot take: only this client goes
       import traceback
       traceback.print_exc()
       try:
@@ -629,7 +637,7 @@ then use the following address:
       self.disconnect(e, "socket.recv")
     else:
       if data:
-        self.activity = NOW
+        #self.activity = NOW
         self.receive(data)
       elif self.transport.at_eof():
         self.disconnect('end of data', 'socket.recv')
@@ -703,7 +711,8 @@ then use the following address:
     p = game.FnPlayers()[id]
     p.setplayername(name.decode('utf-8', 'replace'))
 
-  def set_udp_port(self, port, addr=None, *rest):
+  def set_udp_port(self, port, *rest):
+    # (an older client may send a host too: the frames go to its address)
     if port == MSG_BROADCAST_PORT:
       self.log('set_udp_port: broadcast')
       broadcast_clients[self] = 1
@@ -721,13 +730,10 @@ then use the following address:
         self.sendframe = udpovertcp.SocketMarshaller(self.transport, self).send
         self.log('set_udp_port: udp-over-tcp')
       else:
-        if isinstance(addr, bytes):
-          addr = addr.decode('ascii', 'replace')
-        addr = addr or self.addr[0]
         try:
-          self.transport.open_udp(addr, port)
+          self.transport.open_udp(port)
         except error as e:
-          print("Cannot set UDP socket to", addr, str(e), file=sys.stderr)
+          print("Cannot set UDP socket to port", port, str(e), file=sys.stderr)
           self.sendframe = None
           self.udpsockcounter = sys.maxsize
         else:
@@ -736,8 +742,7 @@ then use the following address:
             self.setup_dyncompress()
           else:
             self.dyncompress = None
-        self.log('set_udp_port: %s %s:%d' % (self.transport.udp_kind,
-                                             addr, port))
+        self.log('set_udp_port: %s %d' % (self.transport.udp_kind, port))
 
   def enable_sound(self, sound_mode=1, *rest):
     if sound_mode != self.has_sound:
@@ -1322,13 +1327,9 @@ class Game:
       print("Too many connections; refusing new connection from", addr)
       conn.close()
     else:
+      print('Connected by', addr)
       try:
-        addrname = (gethostbyaddr(addr[0])[0],) + addr[1:]
-      except:
-        addrname = addr
-      print('Connected by', addrname)
-      try:
-        c = FnClient(conn, addrname)
+        c = FnClient(conn, addr)
       except error as e:
         print('Connexion already lost!', e)
       else:

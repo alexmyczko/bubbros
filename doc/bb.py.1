@@ -36,8 +36,8 @@ is a random hex number (acts as minimal protection). This url is
 printed when the server starts.  You can start and view games and kill
 the server from this panel. The control panel also allows you to type
 in the address of a server to connect to, the script will then open a
-client to that server. The http server also servers java applet
-clients for those players who wish to use one.
+client to that server. The http server also serves the Java applet
+client to those players who wish to use one.
 
 When a game is started the script opens a port for the game
 server. This port can then be connected to by a client.  Clients
@@ -46,13 +46,14 @@ autodetect servers running on the local network with UDP ping on port
 
 .SS Connection forming
 
-The client forms a tcp connection to the server. Or, when using the
-metaserver, the server forms a connection to the client. If this
-fails, the client and server try a simultaneous SYN connect. This
-sometimes works if the server and client are behind firewalls. The
-server then tries to transmit the data over udp. If it gets no
-response from the client it will fall back to the existing tcp
-connection.
+The client connects to the server over TCP.  When joining through the
+meta-server, if that fails, the server connects back to the client,
+and both try a simultaneous SYN connect; this sometimes works when
+the server and the client are behind firewalls.  When the meta-server,
+the server and the client are all recent enough, the connection can
+also go over UDP through the NATs of both sides.  The animation data then goes over UDP; if too little of
+it reaches the client, the client asks for it over the TCP connection
+instead.
 
 .SH OPTIONS
 
@@ -63,6 +64,23 @@ Start at board (level) number
 The default is 1. See also the
 .B -s
 option.
+
+.TP
+.B --debug
+Ctrl-C during a game opens the Python debugger, then restarts the
+board. Without it, Ctrl-C stops the server.
+
+.TP
+.BI --extralife " N"
+Gain an extra life every
+.I N
+points.
+
+.TP
+.BI --final " N"
+End at board number
+.IR N .
+The default is 100.
 
 .TP
 .B -h, --help
@@ -80,6 +98,16 @@ option to make a public server that is available for a long time.
 Limit number of lives to 
 .IR N .
 If this option is not specified the number of lives will be infinite.
+
+.TP
+.BI --limitlives " N"
+The maximum number of lives a player can gain in one board.
+
+.TP
+.BI "-M " N ", --monsters " N
+Multiply the number of monsters by
+.IR N .
+The default is 1.0 to 2.0, depending on the number of players.
 
 .TP
 .B -m, --metaserver
@@ -100,9 +128,9 @@ or on the Options page of the web interface.
 .IR TYPE = N
 Sets default listening ports. If type is
 .B LISTEN
-, sets the game server port to
+, sets the game server port (TCP and UDP) to
 .IR N .
-The game server port is chosen randomly by default. If the type is
+The game server port is chosen by the system by default. If the type is
 .B HTTP
 , sets the http server port to
 .IR N .
@@ -111,9 +139,14 @@ The http server port defaults to
 Another port will be chosen if
 none was specified and
 .B 8000 
-is already in use. The server also listens to
+is already in use. If the type is
+.B BROADCAST
+, sets the UDP port on the clients where the animation data is sent by
+broadcast on a local network to
+.IR N ;
+a random one in 18000-18999 by default. The server also listens to
 .B UDP
-ping on port 
+ping on port
 .BR 8056 .
 
 .TP

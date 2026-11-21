@@ -16,8 +16,15 @@ import caching
 #import psyco; psyco.full()
 
 # switch to udp_over_tcp if the udp socket didn't receive at least 60% of
-# the packets sent by the server
+# the packets sent by the server, three pings in a row (the server pings
+# once it sent a kbyte, then 0.8 s later, 0.2 s more each time, up to
+# 2.4 s): counted from the start for 12 pings (~19.5 s), then over the
+# last 10, 9, and from then on 8 pings (19.2 s); 90% received since the
+# last ping is a recovery, and a ping without anything new sent says
+# nothing
 UDP_EXPECTED_RATIO = 0.60
+UDP_RECOVERED_RATIO = 0.90
+UDP_WINDOW = (12, 10, 9, 8)
 
 
 def loadpixmap(dpy, data, colorkey=None):
@@ -172,6 +179,9 @@ class Playfield:
         self.accepted_broadcast = 0
         self.tcpbytecounter = 0
         self.udpbytecounter = 0
+        # (sent by the server, received) at the start and at the pings
+        self.udpwindow = [(0, 0)]
+        self.udppings = 0
         if udp_over_tcp == 1:
             self.start_udp_over_tcp()
         else:
@@ -228,6 +238,9 @@ class Playfield:
                 self.processkeys()
             if self.s in iwtd:
                 inputdata = self.transport.recv_tcp(0x6000)
+                if not inputdata and self.transport.at_eof():
+                    print("Disconnected by the server.")
+                    return
                 self.tcpbytecounter += len(inputdata)
                 inbuf += inputdata
                 inbuf = self.process_inbuf(inbuf)
@@ -524,7 +537,6 @@ class Playfield:
             return None
 
     def startplaying(self):
-        args = ()
         if hasattr(self.s, 'udp_over_udp_mixer'):
             # for SocketOverUdp: reuse the UDP address
             port = self.s.getsockname()[1]
@@ -538,11 +550,11 @@ class Playfield:
             if self.udp_token:
                 peer = self.transport.getpeername()[0], self.udp_token[0]
             if '*udpsock*' in PORTS:
-                udpsock, (host, port) = PORTS['*udpsock*']
+                # the port seen from outside by the meta-server
+                udpsock, (_, port) = PORTS['*udpsock*']
                 self.transport.bind_udp(sock=udpsock, peer=peer)
-                args = (host,)
             else:
-                host, port = self.transport.bind_udp(
+                _, port = self.transport.bind_udp(
                     PORTS.get('CLIENT', INADDR_ANY), peer=peer)
             self.udpsock = self.transport.udpsock
             # Send a datagram to the server: our NAT then lets in what
@@ -555,13 +567,9 @@ class Playfield:
                 self.transport.send_udp(b'.')
             self.iwtd.append(self.udpsock)
             self.initial_iwtd.append(self.udpsock)
-        if 'sendudpto' in PORTS:
-            args = (PORTS['sendudpto'],)
-        # the address the meta-server saw is text, the wire wants bytes
-        args = tuple(a.encode('ascii') if isinstance(a, str) else a
-                     for a in args)
+        # the server sends the frames to this port at our address
         outbound = []
-        outbound.append(message(CMSG_UDP_PORT, port, *args))
+        outbound.append(message(CMSG_UDP_PORT, port))
         if self.snd and self.snd.has_music:
             outbound.append(message(CMSG_ENABLE_MUSIC, 1))
             outbound.append(message(CMSG_PING))
@@ -877,16 +885,33 @@ class Playfield:
             udpkbytes = rest[0]
             if not udpkbytes:
                 return
-            #inp = self.udpbytecounter / (udpkbytes*1024.0)
-            #print "(%d%% packet loss)" % int(100*(1.0-inp))
-            if (udpkbytes<<10) * UDP_EXPECTED_RATIO > self.udpbytecounter:
+            # the bytes sent, as kbytes and the bytes left over (whole
+            # kbytes only from an older server)
+            if len(rest) > 1:
+                total = (udpkbytes << 10) | rest[1]
+            else:
+                total = udpkbytes << 10
+            window = self.udpwindow
+            window.append((total, self.udpbytecounter))
+            self.udppings += 1
+            if self.udppings >= UDP_WINDOW[0]:
+                keep = UDP_WINDOW[min(self.udppings - UDP_WINDOW[0],
+                                      len(UDP_WINDOW) - 1)]
+                del window[:-keep-1]
+            sent = window[-1][0] - window[0][0]
+            received = window[-1][1] - window[0][1]
+            lastsent = window[-1][0] - window[-2][0]
+            lastreceived = window[-1][1] - window[-2][1]
+            recovered = lastreceived >= lastsent * UDP_RECOVERED_RATIO
+            if lastsent <= 0:
+                pass        # nothing new sent: says nothing
+            elif sent * UDP_EXPECTED_RATIO > received and not recovered:
                 # too many packets were dropped (including, maybe, all of them)
                 self.udpsock_low += 1
                 if self.udpsock_low >= 3 and self.initlevel >= 1:
                     # third time now -- that's too much
                     print("Note: routing UDP traffic over TCP", end=' ')
-                    inp = self.udpbytecounter / (udpkbytes*1024.0)
-                    print("(%d%% packet loss)" % int(100*(1.0-inp)))
+                    print("(%d%% packet loss)" % int(100*(1.0-received/sent)))
                     self.start_udp_over_tcp()
                     self.transport.sendall_tcp(message(CMSG_UDP_PORT, MSG_INLINE_FRAME))
             else:

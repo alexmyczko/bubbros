@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 import unittest
+from unittest import mock
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'common')]
@@ -75,7 +76,7 @@ class Native(unittest.TestCase):
         # tells it to the server, which sends the frames there
         host, port = self.client.bind_udp()
         self.assertIsNone(self.server.udp_kind)
-        self.server.open_udp('127.0.0.1', port)
+        self.server.open_udp(port)
         self.assertEqual(self.server.udp_kind, 'udp')
         self.assertEqual(self.server.send_udp(b'frame'), 5)
         select.select([self.client.udpsock], [], [], 5)
@@ -119,7 +120,7 @@ class Others(unittest.TestCase):
         self.assertIs(transport.gettransport(t), t)
 
     def test_base_class_has_no_datagrams(self):
-        self.assertRaises(socket.error, Transport().open_udp, 'x', 1)
+        self.assertRaises(socket.error, Transport().open_udp, 1)
 
     def test_broadcast(self):
         t = BroadcastTransport(18999)
@@ -159,7 +160,7 @@ class Endpoint(unittest.TestCase):
             client, server = self.connect()
             host, port = client.bind_udp()
             client.udpsock.connect(client.getpeername())    # the "NAT"
-            server.open_udp('127.0.0.1', port)
+            server.open_udp(port)
             self.assertEqual(server.udp_kind, 'udp')
             server.send_udp(b'frame%d' % i)
             iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
@@ -175,9 +176,9 @@ class Endpoint(unittest.TestCase):
             wrong = port + 1 if port < 65535 else port - 1
             if learn_first:
                 server.learn_udp_peer(('127.0.0.1', port))
-                server.open_udp('127.0.0.1', wrong)
+                server.open_udp(wrong)
             else:
-                server.open_udp('127.0.0.1', wrong)
+                server.open_udp(wrong)
                 server.learn_udp_peer(('127.0.0.1', port))
             server.send_udp(b'frame')
             iwtd, owtd, ewtd = select.select([client.udpsock], [], [], 2)
@@ -227,7 +228,7 @@ class Endpoint(unittest.TestCase):
     def test_closing_a_client_keeps_the_endpoint(self):
         client, server = self.connect()
         host, port = client.bind_udp()
-        server.open_udp('127.0.0.1', port)
+        server.open_udp(port)
         server.close()
         client.send_udp(b'.')       # the endpoint still receives
         select.select([self.endpoint], [], [], 2)
@@ -398,11 +399,11 @@ class FakeTransport(Transport):
     def set_low_delay(self):
         self.low_delay = True
 
-    def open_udp(self, host=None, port=None):
+    def open_udp(self, port):
         if not self.can_open_udp:
             raise socket.error("no datagrams")
         self.udp_kind = 'fake'
-        self.udp_address = host, port
+        self.udp_port = port
 
     def send_udp(self, data):
         self.datagrams.append(data)
@@ -488,9 +489,52 @@ class GameServerClient(unittest.TestCase):
     def test_frames_over_datagrams(self):
         self.ready()
         self.c.receive(message(CMSG_UDP_PORT, 12345))
-        self.assertEqual(self.t.udp_address, ('fake', 12345))
+        self.assertEqual(self.t.udp_port, 12345)
         self.c.emit(b'sprites', None)
         self.assertEqual(self.t.datagrams, [b'sprites'])
+
+    def test_a_host_from_the_client_is_ignored(self):
+        # an older client sends a host too: the frames still go to the
+        # address it is connected from
+        self.ready()
+        self.c.receive(message(CMSG_UDP_PORT, 12345, b'203.0.113.9'))
+        self.assertEqual(self.t.udp_port, 12345)
+        self.c.emit(b'sprites', None)
+        self.assertEqual(self.t.datagrams, [b'sprites'])
+
+    def pings(self, seconds, step=0.05):
+        # the times and values of the pings sent by emit() every 'step's
+        result = []
+        end = gamesrv.NOW + seconds
+        while gamesrv.NOW < end:
+            gamesrv.NOW += step
+            self.c.emit(b'', None)
+            for values in self.messages():
+                if values[0] == MSG_PING:
+                    result.append((gamesrv.NOW,) + tuple(values[1:]))
+        return result
+
+    def test_pings_after_the_first_kbyte(self):
+        self.ready()
+        self.c.last_ping = gamesrv.NOW
+        self.assertEqual(self.pings(5), [])        # no frames sent yet
+        self.c.udpsockcounter = 5000               # 4 kbytes and 904 bytes
+        pings = self.pings(40)
+        self.assertEqual({p[1:] for p in pings}, {(4, 904)})
+        times = [t for t, kb, rest in pings]
+        spacings = [b - a for a, b in zip(times, times[1:])]
+        expected = [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.4, 2.4]
+        for got, want in zip(spacings, expected):
+            self.assertAlmostEqual(got, want, delta=0.051)
+
+    def test_broadcast_clients_get_0(self):
+        self.ready()
+        gamesrv.broadcast_clients[self.c] = 1
+        self.addCleanup(gamesrv.broadcast_clients.pop, self.c, None)
+        self.c.udpsockcounter = 5000
+        pings = self.pings(20)
+        self.assertTrue(pings)
+        self.assertEqual({p[1:] for p in pings}, {(0,)})
 
     def test_frames_in_the_stream(self):
         import zlib
@@ -515,7 +559,7 @@ class GameServerClient(unittest.TestCase):
         self.assertEqual(self.t.datagrams, [])
         # the client is told that it missed everything, in a message
         # that still fits (it then asks for the frames in the stream)
-        self.assertIn((MSG_PING, 0x7FFFFFFF), self.messages())
+        self.assertIn((MSG_PING, 0x7FFFFFFF, 1023), self.messages())
 
     def test_input_and_disconnect(self):
         self.t.w.send(message(CMSG_PROTO_VERSION, 3))
@@ -527,6 +571,18 @@ class GameServerClient(unittest.TestCase):
         self.assertIsNone(self.c.transport)
         self.assertTrue(self.t.closed)
         self.assertNotIn(self.c, gamesrv.clients)
+
+    def test_bad_messages_disconnect_only_that_client(self):
+        bad = [message(CMSG_ADD_PLAYER, b'x'),           # not a player id
+               message(CMSG_DATA_REQUEST, 9999, 0, 10),  # no such file
+               b'\x02\xff\xfe',                         # not type codes
+               b'\x04\xc9999999s']                      # 1 MB and more
+        for data in bad:
+            self.setUp()
+            with mock.patch('traceback.print_exc'):
+                self.c.receive(data)
+            self.assertIsNone(self.c.transport, data)
+            self.assertNotIn(self.c, gamesrv.clients)
 
 
 if __name__ == '__main__':

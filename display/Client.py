@@ -46,8 +46,8 @@ def parse_cmdline(argv):
         print('  -t   --tcp        for slow or proxy connections', file=sys.stderr)
         print('  -u   --udp        for fast direct connections', file=sys.stderr)
         print('                      (default is to autodetect tcp or udp)', file=sys.stderr)
-        print('  --port UDP=# or #:#   fixed inbound udp port or host:port', file=sys.stderr)
-        print('  --port TCP=#          fixed inbound tcp port (-m only)', file=sys.stderr)
+        print('  --port UDP=#          fixed udp port (sends and receives)', file=sys.stderr)
+        print('  --port TCP=#          fixed tcp port for back-connections (-m only)', file=sys.stderr)
         print(file=sys.stderr)
         print('graphic drivers:', file=sys.stderr)
         for info in modes.graphicmodeslist():
@@ -102,10 +102,10 @@ def parse_cmdline(argv):
                     portname = 'BACK'
             except ValueError:
                 portname = 'CLIENT'
-            if portname == 'CLIENT' and ':' in value:
-                udphostname, value = value.split(':')
-                common.msgstruct.PORTS['sendudpto'] = udphostname
-            common.msgstruct.PORTS[portname] = int(value)
+            try:
+                common.msgstruct.PORTS[portname] = int(value)
+            except ValueError:
+                usage()
         elif key == '--cfg':
             extraopts['cfgfile'] = value
         elif key in ('-h', '--help'):
@@ -145,7 +145,20 @@ def parse_cmdline(argv):
     server = hostchooser.pick(UdpLookForServer * 3)
     return directconnect(server), mode
 
+def buildcolors():
+    # the colored images, as the server builds them: the client finds
+    # them here instead of downloading them (not in a read-only folder)
+    file = os.path.join(os.path.dirname(LOCALDIR), 'bubbob', 'images',
+                        'buildcolors.py')
+    if os.path.exists(file):
+        try:
+            g = {'__name__': '__auto__', '__file__': file}
+            exec(compile(open(file, "rb").read(), file, 'exec'), g)
+        except Exception as e:
+            print('cannot build the colored images:', e, file=sys.stderr)
+
 def directconnect(sockaddr):
+    buildcolors()
     print("connecting to %s:%d..." % sockaddr)
     from socket import socket, AF_INET, SOCK_STREAM
     s = socket(AF_INET, SOCK_STREAM)
@@ -153,6 +166,7 @@ def directconnect(sockaddr):
     return s, sockaddr
 
 def metaconnect(metaaddr):
+    buildcolors()
     from metaserver import metaclient
     import common.msgstruct
     port = common.msgstruct.PORTS.get('BACK')

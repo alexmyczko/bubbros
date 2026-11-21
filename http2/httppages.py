@@ -191,9 +191,6 @@ class PageServer:
         for key, value in list(self.localoptions.dict().items()):
             if key.startswith('port_'):
                 key = key[5:]
-                if key == 'CLIENT' and type(value) == str and ':' in value:
-                    udphostname, value = value.split(':')
-                    msgstruct.PORTS['sendudpto'] = udphostname
                 try:
                     value = int(value)
                 except:
@@ -409,13 +406,6 @@ class PageServer:
                 else:
                     raise HTTPRequestError("Sorry, I cannot connect the Java applet to a server using this field.")
             return None, 'http://%s:%s/' % (host, httpport)
-
-        # now is a good time to generate the color files if we can
-        file = os.path.join(LOCALDIR, os.pardir, 'bubbob', 'images',
-                            'buildcolors.py')
-        if os.path.exists(file):
-            g = {'__name__': '__auto__', '__file__': file}
-            exec(compile(open(file, "rb").read(), file, 'exec'), g)
 
         if port:
             address = '%s:%s' % (host, port)
