@@ -30,7 +30,8 @@ SEND_TIMEOUT = 5.0          # a peer that does not read is dropped
 IDLE_TIMEOUT = 120.0        # connections without a listed game
 SWEEP_INTERVAL = 10.0       # how often mainloop() looks for idle ones
 MAX_TRACEBACKS = 100        # crash report files kept
-MAX_TRACEBACK_SIZE = 16384   # a real traceback is a few KB
+MAX_TRACEBACK_SIZE = 16384  # a real traceback is a few KB
+MAX_HTTP_THREADS = 256      # max http connections
 # where crash reports go: systemd's StateDirectory=, else next to this file
 TB_DIR = os.environ.get('STATE_DIRECTORY', '').split(':')[0] or HERE
 
@@ -414,17 +415,12 @@ httpserver.register('mbub.png', httpserver.fileloader(os.path.join(HERE, 'mbub.p
 httpserver.register('home.png', httpserver.fileloader(os.path.join(HERE, 'home.png'), 'image/png'), public=True)
 
 def openhttpsocket(port = META_SERVER_HTTP_PORT):
-    from http.server import HTTPServer
-    class ServerClass(HTTPServer):
-        def get_request(self):
-            sock, addr = self.socket.accept()
-            sock.settimeout(5.0)
-            return sock, addr
     HandlerClass = httpserver.MiniHandler
     server_address = ('', port)
-    httpd = ServerClass(server_address, HandlerClass)
-    s = httpd.socket
-    serversockets[s] = httpd.handle_request, None
+    httpd = httpserver.ThreadedServer(server_address, HandlerClass)
+    httpd.MAX_THREADS = MAX_HTTP_THREADS
+    caller = httpserver.serve_in_threads(httpd)
+    serversockets[caller.wakesock] = caller.run_pending, None
 
 
 # ____________________________________________________________

@@ -5,6 +5,9 @@ page) only for the computer the game runs on."""
 import http.client
 import importlib
 import os
+import select
+import socket
+import time
 import sys
 import threading
 import unittest
@@ -172,6 +175,75 @@ class JavaApplet(SavedPages):
             self.assertIn('value="&quot;&gt;&lt;script&gt;', page)
         f, ctype = javaserver.indexloader(player1=['a b&c'])
         self.assertIn('name.html?player1=a+b%26c"', f.read())
+
+
+class ThreadedPages(unittest.TestCase):
+    # the HTTP server in threads of its own: an idle connection holds up
+    # nothing, and the loaders run in the loop that serve_in_threads()
+    # was called from (here: the loop below, in the test's thread)
+
+    def test_loaders_run_in_the_loop_while_a_connection_idles(self):
+        saved = dict(httpserver.pathloaders), dict(httpserver.publicpaths)
+        def restore():
+            httpserver.pathloaders.clear()
+            httpserver.pathloaders.update(saved[0])
+            httpserver.publicpaths.clear()
+            httpserver.publicpaths.update(saved[1])
+        self.addCleanup(restore)
+        threads = []
+        def loader(headers, **options):
+            threads.append(threading.current_thread())
+            return StringIO('page'), 'text/plain'
+        httpserver.register('', loader, public=True)
+        def mark():
+            threads.append(threading.current_thread())
+            return 'part'
+        def template(headers, **options):
+            # a page in parts, each run as it is read
+            return (httpserver.TranslatorIO('%(mark())s\x0c%(mark())s',
+                                            {'mark': mark}), 'text/html')
+        httpserver.register('template.html', template, public=True)
+        httpserver.register('file.txt', httpserver.fileloader(__file__),
+                            public=True)
+
+        class Quiet(httpserver.MiniHandler):
+            def log_message(self, *args):
+                pass
+        httpd = httpserver.ThreadedServer(('127.0.0.1', 0), Quiet)
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        caller = httpserver.serve_in_threads(httpd)
+        port = httpd.server_address[1]
+        idle = socket.create_connection(('127.0.0.1', port))
+        self.addCleanup(idle.close)
+        half = socket.create_connection(('127.0.0.1', port))
+        self.addCleanup(half.close)
+        half.sendall(b'GET / HT')
+
+        # a file is sent by its thread alone: nothing runs the loop here
+        conn = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+        conn.request('GET', '/file.txt')
+        with open(__file__, 'rb') as f:
+            self.assertEqual(conn.getresponse().read(), f.read())
+        conn.close()
+
+        answers = []
+        def get():
+            for path in ('/', '/template.html'):
+                conn = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+                conn.request('GET', path)
+                answers.append(conn.getresponse().read())
+                conn.close()
+        t = threading.Thread(target=get)
+        t.start()
+        end = time.time() + 3
+        while len(answers) < 2 and time.time() < end:
+            r, w, e = select.select([caller.wakesock], [], [], 0.05)
+            if r:
+                caller.run_pending()
+        t.join(3)
+        self.assertEqual(answers, [b'page', b'partpart'])
+        self.assertEqual(threads, [threading.current_thread()] * 3)
 
 
 if __name__ == '__main__':
