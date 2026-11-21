@@ -145,7 +145,20 @@ def parse_cmdline(argv):
     server = hostchooser.pick(UdpLookForServer * 3)
     return directconnect(server), mode
 
+def buildcolors():
+    # the colored images, as the server builds them: the client finds
+    # them here instead of downloading them (not in a read-only folder)
+    file = os.path.join(os.path.dirname(LOCALDIR), 'bubbob', 'images',
+                        'buildcolors.py')
+    if os.path.exists(file):
+        try:
+            g = {'__name__': '__auto__', '__file__': file}
+            exec(compile(open(file, "rb").read(), file, 'exec'), g)
+        except Exception as e:
+            print('cannot build the colored images:', e, file=sys.stderr)
+
 def directconnect(sockaddr):
+    buildcolors()
     print("connecting to %s:%d..." % sockaddr)
     from socket import socket, AF_INET, SOCK_STREAM
     s = socket(AF_INET, SOCK_STREAM)
@@ -153,6 +166,7 @@ def directconnect(sockaddr):
     return s, sockaddr
 
 def metaconnect(metaaddr):
+    buildcolors()
     from metaserver import metaclient
     import common.msgstruct
     port = common.msgstruct.PORTS.get('BACK')
