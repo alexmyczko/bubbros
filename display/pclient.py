@@ -524,7 +524,6 @@ class Playfield:
             return None
 
     def startplaying(self):
-        args = ()
         if hasattr(self.s, 'udp_over_udp_mixer'):
             # for SocketOverUdp: reuse the UDP address
             port = self.s.getsockname()[1]
@@ -538,11 +537,11 @@ class Playfield:
             if self.udp_token:
                 peer = self.transport.getpeername()[0], self.udp_token[0]
             if '*udpsock*' in PORTS:
-                udpsock, (host, port) = PORTS['*udpsock*']
+                # the port seen from outside by the meta-server
+                udpsock, (_, port) = PORTS['*udpsock*']
                 self.transport.bind_udp(sock=udpsock, peer=peer)
-                args = (host,)
             else:
-                host, port = self.transport.bind_udp(
+                _, port = self.transport.bind_udp(
                     PORTS.get('CLIENT', INADDR_ANY), peer=peer)
             self.udpsock = self.transport.udpsock
             # Send a datagram to the server: our NAT then lets in what
@@ -555,13 +554,9 @@ class Playfield:
                 self.transport.send_udp(b'.')
             self.iwtd.append(self.udpsock)
             self.initial_iwtd.append(self.udpsock)
-        if 'sendudpto' in PORTS:
-            args = (PORTS['sendudpto'],)
-        # the address the meta-server saw is text, the wire wants bytes
-        args = tuple(a.encode('ascii') if isinstance(a, str) else a
-                     for a in args)
+        # the server sends the frames to this port at our address
         outbound = []
-        outbound.append(message(CMSG_UDP_PORT, port, *args))
+        outbound.append(message(CMSG_UDP_PORT, port))
         if self.snd and self.snd.has_music:
             outbound.append(message(CMSG_ENABLE_MUSIC, 1))
             outbound.append(message(CMSG_PING))

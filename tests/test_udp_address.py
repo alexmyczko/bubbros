@@ -41,7 +41,7 @@ class UdpAddress(unittest.TestCase):
         pf.pending_udp_data = None
         pf.iwtd, pf.initial_iwtd = [], []
         pf.startplaying()
-        msg = msgstruct.message(msgstruct.CMSG_UDP_PORT, 4321, b'203.0.113.5')
+        msg = msgstruct.message(msgstruct.CMSG_UDP_PORT, 4321)
         self.assertEqual(pf.s.sent, msg)
 
 

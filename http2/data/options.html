@@ -235,11 +235,11 @@ if java:
    <p>Game server port (TCP and UDP): <%(nameval("text", "port_LISTEN", default="", mangling=0))s><br>
       HTTP server port: <%(nameval("text", "port_HTTP", default="", mangling=0))s></p>
 
-   <p>Client incoming UDP port (or <code>host:port</code> if redirected): <%(nameval("text", "port_CLIENT", default="", mangling=0))s><br>
+   <p>Client UDP port (sends and receives): <%(nameval("text", "port_CLIENT", default="", mangling=0))s><br>
       <%(nameval("radio", "datachannel", "ucp", mangling=0))s>always UDP</input>
       <%(nameval("radio", "datachannel", "tcp", mangling=0))s>no UDP, only TCP</input>
       <%(nameval("radio", "datachannel", "auto", default="auto", mangling=0))s>Auto-detect</input><br>
-      Client incoming TCP port (metaserver-directed back-connections): <%(nameval("text", "port_BACK", default="", mangling=0))s></p>
+      Client TCP port (metaserver-directed back-connections): <%(nameval("text", "port_BACK", default="", mangling=0))s></p>
     </td>
     <td width=12></td>
     <td align="center" valign="bottom">

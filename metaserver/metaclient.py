@@ -534,7 +534,7 @@ class MetaClientCli:
         self.recvlock = _thread.allocate_lock()
         self.inputmsgqueue = []
         self.gotudpport = None
-        if not (PORTS.get('CLIENT') or PORTS.get('sendudpto')):
+        if not PORTS.get('CLIENT'):
             self.s = connect(addr=self.metaserver)
             if self.s is not None:
                 _thread.start_new_thread(self.acquire_udp_port, ())
@@ -751,13 +751,11 @@ class MetaClientCli:
 
     def attempt_udp_connect(self, punch=False):
         if '*udpsock*' in PORTS:
-            s, (host, port) = PORTS['*udpsock*']
+            s, (_, port) = PORTS['*udpsock*']
         else:
             s = socket(AF_INET, SOCK_DGRAM)
             s.bind(('', PORTS.get('CLIENT', INADDR_ANY)))
-            host, port = s.getsockname()
-            if 'sendudpto' in PORTS:
-                host = PORTS['sendudpto']
+            port = s.getsockname()[1]
         secret = originalsecret = random.randrange(0, 65536)
         if punch:
             punchaddr = self.ask_punch(s, secret)

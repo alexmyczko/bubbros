@@ -191,9 +191,6 @@ class PageServer:
         for key, value in list(self.localoptions.dict().items()):
             if key.startswith('port_'):
                 key = key[5:]
-                if key == 'CLIENT' and type(value) == str and ':' in value:
-                    udphostname, value = value.split(':')
-                    msgstruct.PORTS['sendudpto'] = udphostname
                 try:
                     value = int(value)
                 except:

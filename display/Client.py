@@ -46,8 +46,8 @@ def parse_cmdline(argv):
         print('  -t   --tcp        for slow or proxy connections', file=sys.stderr)
         print('  -u   --udp        for fast direct connections', file=sys.stderr)
         print('                      (default is to autodetect tcp or udp)', file=sys.stderr)
-        print('  --port UDP=# or #:#   fixed inbound udp port or host:port', file=sys.stderr)
-        print('  --port TCP=#          fixed inbound tcp port (-m only)', file=sys.stderr)
+        print('  --port UDP=#          fixed udp port (sends and receives)', file=sys.stderr)
+        print('  --port TCP=#          fixed tcp port for back-connections (-m only)', file=sys.stderr)
         print(file=sys.stderr)
         print('graphic drivers:', file=sys.stderr)
         for info in modes.graphicmodeslist():
@@ -102,10 +102,10 @@ def parse_cmdline(argv):
                     portname = 'BACK'
             except ValueError:
                 portname = 'CLIENT'
-            if portname == 'CLIENT' and ':' in value:
-                udphostname, value = value.split(':')
-                common.msgstruct.PORTS['sendudpto'] = udphostname
-            common.msgstruct.PORTS[portname] = int(value)
+            try:
+                common.msgstruct.PORTS[portname] = int(value)
+            except ValueError:
+                usage()
         elif key == '--cfg':
             extraopts['cfgfile'] = value
         elif key in ('-h', '--help'):
