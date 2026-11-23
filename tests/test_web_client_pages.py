@@ -153,6 +153,8 @@ class JavaApplet(SavedPages):
         self.addCleanup(restore)
         return importlib.import_module('javaserver')
 
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, 'java')),
+                         'the applet (java/) is not installed')
     def test_applet_is_public(self):
         javaserver = self.load_javaserver()
         self.assertIs(httpserver.pathloaders[''], javaserver.indexloader)
