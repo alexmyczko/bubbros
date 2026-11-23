@@ -1,8 +1,9 @@
-# nonfree/: the subgame sounds, not free
+# nonfree/: files of the game that are not free
 
-This folder holds the 14 sounds of the subgames (bubbob/ext1 to ext7),
-under the same paths they had in bubbob/.  None of them has a free
-licence, so they are kept apart from the rest of the game.
+This folder holds the 14 sounds of the subgames (bubbob/ext1 to ext7)
+and 21 sheets of wall patterns (bubbob/tmp/pat00-20.ppm), under the same
+paths they had in bubbob/.  None of them has a free licence, so they are
+kept apart from the rest of the game.
 
 ## Why they are not free
 
@@ -13,7 +14,10 @@ licence, so they are kept apart from the rest of the game.
   belong to their own copyright holders.
 - ext7's music is an arrangement of the title theme of Red Baron
   (Dynamix, 1990), a copyrighted composition.
-- The other files have no known author, so no licence can be shown.
+- The other sounds have no known author, so no licence can be shown.
+- The wall patterns were drawn by Michael S. Repton for his level set
+  The House of Fun (bubbob/levels/HouseOfFun.bin, 2002), which has no
+  licence either.
 
 ## Credits
 
@@ -28,6 +32,7 @@ licence, so they are kept apart from the rest of the game.
 | ext6/music.wav | unknown (rock, with drums and guitar) |
 | ext5/ouch.wav, ext6/crash.wav | unknown |
 | ext1/brick.wav, ext1/wall.wav, ext3/shoot.wav, ext7/fire.wav, ext7/hit.wav | generated tones and noise, author unknown |
+| tmp/pat00.ppm to tmp/pat20.ppm | the wall patterns of The House of Fun by Michael S. Repton (152 of their 153 tiles are in HouseOfFun.bin and in no file of McSebi's) |
 
 The evidence for each line, the parts of each remix used, and what was
 searched for the unknown files are in ../PROVENANCE.md.  To check the five
@@ -36,9 +41,11 @@ and ffmpeg).
 
 ## How the game uses this folder
 
-When this folder is installed, the game plays these files
-(common/gamesrv.py, soundpath()).  A distribution can leave it out: each
-subgame then plays its free music and sound effects from bubbob/extN/
-(credits in ../PROVENANCE.md).  Putting the folder
-back, for example from a separate package, brings the original sounds
-back.
+When this folder is installed, the game plays these sounds
+(common/gamesrv.py, soundpath()) and draws the .py level sets with these
+walls (bubbob/images.py, choose_patterns()).  A distribution can leave it
+out: each subgame then plays its free music and sound effects from
+bubbob/extN/, and the .py level sets get McSebi's wall patterns from
+Levels.bin (bubbob/tmp/pat21-37.ppm and pat52.ppm; credits in
+../PROVENANCE.md).  Putting the folder back, for example from a separate
+package, brings the original sounds and walls back.

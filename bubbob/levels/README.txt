@@ -44,6 +44,7 @@ several tiles, (0, 0), (1, 0), (0, 1), (1, 1) for a 2x2 one.  'l' and
 an 8 pixel shadow on the right); 'l' alone is used for both sides.  The
 color 0x010101 is transparent.  The files (.ppm) are looked for next to
 the level file first, then in bubbob/tmp/.  You can mix using the
-original patterns: HouseOfFun (pat00-20), Levels (pat21-37), Arena
-(pat38-51); with custom ones however you wish. A level set with its own
+original patterns: Levels (pat21-37, pat52), Arena (pat38-51); with
+custom ones however you wish.  HouseOfFun's (pat00-20) are in
+nonfree/bubbob/tmp/, without a licence. A level set with its own
 pictures can live in a folder of its own: see PatternDemo/.

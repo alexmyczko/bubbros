@@ -69,8 +69,8 @@ class level02(boarddef.Level):
 class level03(boarddef.Level):
     # tiles of the game's own sheets, in bubbob/tmp/
     patmap = {
-        (0, 0): ('pat09.ppm', (0, 0, 24, 24)),
-        'l':    ('pat14.ppm', (0, 160, 40, 32)),
+        (0, 0): ('pat21.ppm', (0, 0, 24, 24)),
+        'l':    ('pat31.ppm', (0, 0, 40, 32)),
     }
     a = LNasty
     b = RMonky

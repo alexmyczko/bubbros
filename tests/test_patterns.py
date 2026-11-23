@@ -19,14 +19,59 @@ finally:
 class GlobalPatmap(unittest.TestCase):
 
     def test_boards_from_100_repeat_the_first_100(self):
-        # board 26 has a 2x2 stamp and border pieces: so has board 126
+        # whichever map is in use (with or without nonfree/)
         for n in (126, 226):
-            for key in ((0, 0), (1, 0), (0, 1), (1, 1), ('l',)):
-                self.assertTrue(images.haspat((n,) + key), (n, key))
-                self.assertEqual(images.loadpattern((n,) + key),
-                                 images.loadpattern((26,) + key))
-            self.assertFalse(images.haspat((n, 2, 0)))
-            self.assertFalse(images.haspat((n, 'r')))
+            for key in ((0, 0), (1, 0), (0, 1), (1, 1), (2, 0), ('l',), ('r',)):
+                self.assertEqual(images.haspat((n,) + key),
+                                 images.haspat((26,) + key), (n, key))
+                if images.haspat((n,) + key):
+                    self.assertEqual(images.loadpattern((n,) + key),
+                                     images.loadpattern((26,) + key))
+
+
+NONFREE_TMP = os.path.join(ROOT, 'nonfree', 'bubbob', 'tmp')
+
+
+class FreeAndNonFree(unittest.TestCase):
+    "HouseOfFun's patterns are in nonfree/; McSebi's are the default."
+
+    def test_choice(self):
+        import tempfile
+        empty = tempfile.mkdtemp()
+        self.addCleanup(os.rmdir, empty)
+        self.assertEqual(images.choose_patterns(empty),
+                         (images._patmaps.patmap, 'tmp'))
+        if os.path.isdir(NONFREE_TMP):
+            self.assertEqual(images.choose_patterns(NONFREE_TMP),
+                             (images._patmaps.nonfree_patmap, NONFREE_TMP))
+
+    def test_every_file_is_where_its_map_says(self):
+        maps = [(images._patmaps.patmap, ('bubbob', 'tmp'))]
+        if os.path.isdir(NONFREE_TMP):      # a distribution may leave it out
+            maps.append((images._patmaps.nonfree_patmap,
+                         ('nonfree', 'bubbob', 'tmp')))
+        for pm, folder in maps:
+            for key, (fn, rect) in pm.items():
+                self.assertTrue(os.path.isfile(os.path.join(ROOT, *folder + (fn,))),
+                                (key, fn))
+        # nothing of HouseOfFun is left in bubbob/tmp/
+        self.assertFalse([fn for fn in os.listdir(os.path.join(ROOT, 'bubbob', 'tmp'))
+                          if fn.startswith('pat') and int(fn[3:5]) <= 20])
+
+    def test_free_patterns_load(self):
+        saved = images.patmap, images.patdir
+        self.addCleanup(lambda: setattr(images, 'patmap', saved[0]) or
+                        setattr(images, 'patdir', saved[1]))
+        images.patmap, images.patdir = images.choose_patterns('/nonexistent')
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        os.chdir(os.path.join(ROOT, 'bubbob'))
+        for n in (0, 26, 99, 126):
+            for key in ((0, 0), ('l',)):
+                if images.haspat((n,) + key):
+                    bitmap, rect = images.loadpattern((n,) + key)
+                    self.assertTrue(bitmap.filename.startswith('tmp/pat'))
+                    self.assertEqual(len(bitmap.read()) > 0, True)
 
 
 class LevelPatmap(unittest.TestCase):
@@ -83,7 +128,7 @@ class LevelPatmap(unittest.TestCase):
     def test_game_sheets_as_fallback(self):
         b = self.levels['level03'](2)
         self.assertEqual(self.pattern(b, (0, 0)),
-                         ('tmp/pat09.ppm', (0, 0, 24, 24)))
+                         ('tmp/pat21.ppm', (0, 0, 24, 24)))
 
     def test_no_patmap(self):
         b = self.levels['level04'](3)

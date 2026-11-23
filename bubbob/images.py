@@ -1,7 +1,7 @@
 
 import gamesrv, os
 from sprmap import sprmap as original_sprmap
-from patmap import patmap
+import patmap as _patmaps
 import mnstrmap
 import pixmap
 
@@ -292,6 +292,16 @@ def make_darker(ico, is_dragon, bmpcache={}):
         bmpcache[bmp, is_dragon] = darkbmp
     return darkbmp.geticon(*rect)
 
+def choose_patterns(nonfree_tmp):
+    """The wall patterns of the .py level sets: the original ones, drawn
+    for HouseOfFun.bin and without a licence, if nonfree/ is installed,
+    else McSebi's from Levels.bin (see patmap.py)."""
+    if os.path.isfile(os.path.join(nonfree_tmp, 'pat00.ppm')):
+        return _patmaps.nonfree_patmap, nonfree_tmp
+    return _patmaps.patmap, 'tmp'
+
+patmap, patdir = choose_patterns(os.path.join(gamesrv.NONFREE, 'bubbob', 'tmp'))
+
 def patkey(n):
     # boards 100, 200... have the patterns of boards 0, 1...
     if n not in patmap:
@@ -303,9 +313,18 @@ def haspat(n):
 
 def loadpattern(n, keycol=None):
     filename, rect = patmap[patkey(n)]
-    filename = os.path.join('tmp', filename)
-    bitmap = gamesrv.getbitmap(filename, keycol)
+    if patdir == 'tmp':
+        bitmap = gamesrv.getbitmap(os.path.join('tmp', filename), keycol)
+    else:
+        bitmap = nonfreebitmap(os.path.join(patdir, filename), keycol)
     return bitmap, rect
+
+def nonfreebitmap(path, keycol=None, cache={}):
+    # outside bubbob/: the clients cannot know that path, send the data
+    if path not in cache:
+        with open(path, 'rb') as f:
+            cache[path] = gamesrv.newbitmap(f.read(), keycol)
+    return cache[path]
 
 def makebkgndpattern(bitmap, xxx_todo_changeme, darker={}):
     (x,y,w,h) = xxx_todo_changeme

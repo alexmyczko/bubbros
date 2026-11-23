@@ -1,8 +1,9 @@
 # The wall patterns in bubbob/tmp/, in patmap.py's format; board numbers
 # from 0 as in patmap.py.
-#   pat00-20: HouseOfFun.bin (the same as patmap.py)
-#   pat21-37: Levels.bin (also LostLevels.bin)
-#   pat38-51: Arena.bin
+#   pat00-20: HouseOfFun.bin (patmap.py's nonfree_patmap), moved to
+#             nonfree/bubbob/tmp/: drawn by Michael S. Repton, no licence
+#   pat21-37, pat52: Levels.bin (also LostLevels.bin), patmap.py's patmap
+#   pat38-51: Arena.bin (McSebi's patterns of Levels and Dreamland)
 #
 # This file is informational, it is not read by the game.
 #
@@ -340,7 +341,7 @@
 (97, 0, 0): ('pat30.ppm', (0, 168, 24, 24)),
 (97, 'l'): ('pat37.ppm', (0, 160, 40, 32)),
 (98, 0, 0): ('pat30.ppm', (0, 192, 24, 24)),
-(99, 0, 0): ('pat09.ppm', (0, 168, 24, 24)),
+(99, 0, 0): ('pat52.ppm', (0, 0, 24, 24)),
 
 # Arena
 (0, 0, 0): ('pat38.ppm', (0, 0, 24, 24)),
