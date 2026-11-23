@@ -156,8 +156,11 @@ class JavaApplet(SavedPages):
     def test_applet_is_public(self):
         javaserver = self.load_javaserver()
         self.assertIs(httpserver.pathloaders[''], javaserver.indexloader)
-        for path in ('', 'index.html', 'name.html', 'pclient.class',
-                     'sample.wav'):
+        paths = ['', 'index.html', 'name.html', 'sample.wav']
+        # the prebuilt applet, which a distribution may leave out
+        if os.path.exists(os.path.join(ROOT, 'java', 'pclient.class')):
+            paths.append('pclient.class')
+        for path in paths:
             self.assertTrue(httpserver.is_public(path), path)
 
     def test_player_names_are_quoted(self):
