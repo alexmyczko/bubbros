@@ -11,7 +11,7 @@ LICENSE.txt.
 | David Gowers | the graphics he redrew in 2007 | Artistic-2.0 | granted 2026-11-12, below |
 | Sebastian Wegner (McSebi) | Bub & Bob 1 graphics, sounds, music | Artistic (2005, LICENSE.txt) | confirmation asked 2026-11-12 |
 | Sebastian Wegner (McSebi) | bubbob/levels/Levels.bin | not named in the 2005 grant | asked 2026-11-12 |
-| Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun") | none recorded | no address; asked McSebi to forward |
+| Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun"), and its wall patterns in nonfree/bubbob/tmp/pat00-20.ppm | none recorded | no address; asked McSebi to forward |
 | Wim De Gent | bubbob/levels/Arena.bin ("Bub & Bob Arena") | none recorded | no address; asked McSebi to forward |
 | Patrick Viney | bubbob/levels/LostLevels.bin ("Lost Levels") | none recorded | no address; asked McSebi to forward |
 | Armin Rigo, Gio, Michel-Stéphane | the Python levels (bubbob/levels/*.py) | MIT, like the code | confirmed 2026-11-14, below |

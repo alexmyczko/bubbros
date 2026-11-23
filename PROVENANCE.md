@@ -53,6 +53,21 @@ CVS commit is from 2003-01-31.
 - Licence: McSebi's "graphics and sound data", Artistic (2005, quoted in
   LICENSE.txt), and Artistic-2.0 (2009, artistic.txt); Gowers' redrawing,
   Artistic-2.0 (2026, RELICENSING-PERMISSIONS.md).
+- bubbob/tmp/pat*.ppm: the wall patterns of the .py level sets
+  (bubbob/patmap.py), as sheets of tiles.  Each 16x16 wall and 32x32
+  border tile was compared pixel by pixel with every pattern of the four
+  .bin level files:
+
+  | Files | Tiles found in | Licence |
+  |---|---|---|
+  | pat00-20 | HouseOfFun.bin only (152 of 153; the other is the last level, McSebi's) | none: moved to nonfree/bubbob/tmp/ |
+  | pat21-37, pat52 | Levels.bin (also in LostLevels.bin) | McSebi's grant |
+  | pat38-51 | Arena.bin, whose 128 patterns are McSebi's (Levels and Dreamland, see Levels below) | McSebi's grant |
+
+  Before November 2026 the .py level sets used pat00-20.  They now use
+  McSebi's patterns of Levels.bin (patmap.py, patmap), and the original
+  ones when nonfree/ is installed (nonfree_patmap).  pat52.ppm is the one
+  tile of Levels.bin's last level that was only in pat09.ppm.
 - McSebi's page said of his game: "Graphics and sound effects identical to
   Bubble Bobble."  Debian bug https://bugs.debian.org/934972 (2019) raised
   the likeness to Taito's graphics; it was closed because the licence is
