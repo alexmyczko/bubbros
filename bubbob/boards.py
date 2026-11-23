@@ -605,7 +605,9 @@ def patternfile(filename):
 def patternbitmap(filename, keycol=None, cache={}):
     path = patternfile(filename)
     try:
-        rel = os.path.relpath(path)     # (we run in bubbob/)
+        # (we run in bubbob/; getcwd() has no symbolic links, so the
+        # path must not have them either)
+        rel = os.path.relpath(os.path.realpath(path))
     except ValueError:                  # (another drive on Windows)
         rel = None
     if rel and not rel.startswith(os.pardir) and not os.path.isabs(rel):
