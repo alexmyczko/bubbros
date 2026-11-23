@@ -27,6 +27,8 @@ def run(root, ext):
 
 class NonFreeSounds(unittest.TestCase):
 
+    @unittest.skipUnless(os.path.isdir(os.path.join(ROOT, 'nonfree')),
+                         'nonfree/ is not installed')
     def test_originals_win_when_nonfree_is_installed(self):
         # every original in nonfree/ has a free file of the same name
         for ext in EXTS:
