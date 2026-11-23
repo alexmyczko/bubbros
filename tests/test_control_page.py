@@ -137,8 +137,10 @@ class OneWindow(unittest.TestCase):
         # a window that writes 'raised' when asked to come to the front
         window = subprocess.Popen(
             [sys.executable, '-c',
-             'import signal, sys, time\n'
-             'signal.signal(signal.SIGUSR1, lambda *a: print("raised", flush=True))\n'
+             'import os, signal, sys, time\n'
+             # os.write: a print() here could interrupt the print below
+             # and fail with "reentrant call" (seen on one CPU)
+             'signal.signal(signal.SIGUSR1, lambda *a: os.write(1, b"raised\\n"))\n'
              'print("ready", flush=True)\n'
              'time.sleep(30)\n'], stdout=subprocess.PIPE, text=True)
         self.addCleanup(window.wait)
