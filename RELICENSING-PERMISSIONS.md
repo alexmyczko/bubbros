@@ -10,19 +10,20 @@ LICENSE.txt.
 |---|---|---|---|
 | David Gowers | the graphics he redrew in 2007 | Artistic-2.0 | granted 2026-11-12, below |
 | Sebastian Wegner (McSebi) | Bub & Bob 1 graphics, sounds, music | Artistic (2005, LICENSE.txt) | confirmation asked 2026-11-12 |
-| Sebastian Wegner (McSebi) | bubbob/levels/Levels.bin | not named in the 2005 grant | asked 2026-11-12 |
-| Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun"), and its wall patterns in nonfree/bubbob/tmp/pat00-20.ppm | none recorded | no address; asked McSebi to forward |
+| Sebastian Wegner (McSebi) | bubbob/levels/Levels.bin | Artistic (2005, LICENSE.txt): the grant answered a question about the levels too, https://lists.debian.org/debian-devel/2005/05/msg00376.html | confirmation asked 2026-11-12 |
+| Michael Repton | bubbob/levels/HouseOfFun.bin ("The House of Fun"), and its wall patterns in nonfree/bubbob/tmp/pat00-20.ppm | none recorded | mailed 2026-11-23 (address found by anzz1, https://github.com/alexmyczko/bubbros/pull/47) |
 | Wim De Gent | bubbob/levels/Arena.bin ("Bub & Bob Arena") | none recorded | no address; asked McSebi to forward |
 | Patrick Viney | bubbob/levels/LostLevels.bin ("Lost Levels") | none recorded | no address; asked McSebi to forward |
 | Armin Rigo, Gio, Michel-Stéphane | the Python levels (bubbob/levels/*.py) | MIT, like the code | confirmed 2026-11-14, below |
-| unknown | the ext1 to ext7 sounds and music | none known | Armin has no record of their origin, below |
-| Armin Rigo, probably | the five generated effects (brick, wall, shoot, fire, hit) | none | he thinks he probably made some of them, but is not sure: "it's quite possible that I generated the files for some of these sounds" (2026-11-17); not a licence |
+| unknown | the original ext1 to ext7 sounds and music, in nonfree/ | none known | Armin has no record of their origin, below |
+| Armin Rigo, probably | the five original generated effects (brick, wall, shoot, fire, hit), in nonfree/ | none | he thinks he probably made some of them, but is not sure: "it's quite possible that I generated the files for some of these sounds" (2026-11-17); not a licence |
 
 The three level packs were made by fans of the Mac game and published on
 McSebi's site around 2002, credited to their authors
 (https://web.archive.org/web/20020808194157/http://www.mcsebi.de:80/bb1.php).
-They came with no licence, and McSebi's 2005 grant covers only "the
-graphics and sound data" of his own game.
+They came with no licence, and McSebi's 2005 grant covers only the
+data of his own game, Levels.bin included.  The free replacements
+shipped in bubbob/ext1 to ext7 are listed in PROVENANCE.md.
 
 ---
 
