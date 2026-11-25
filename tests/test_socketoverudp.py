@@ -67,6 +67,7 @@ class TestSocketOverUdp(unittest.TestCase):
                     server.recv()
         t = threading.Thread(target=serve, daemon=True)
         t.start()
+        self.addCleanup(t.join, 5.0)    # before the sockets are closed
 
         client.sendall(b'^')
         client.flush()              # this packet is lost
