@@ -125,7 +125,13 @@ def start_local_server():
         # (quoting sucks on Windows) ** 42
         if sys.platform == 'win32':
             args[0] = '"%s"' % (args[0],)
-        os.spawnv(os.P_NOWAITO, sys.executable, args)
+        if hasattr(os, 'P_DETACH'):
+            mode = os.P_DETACH
+        elif hasattr(os, 'P_NOWAITO'):
+            mode = os.P_NOWAITO
+        else:
+            mode = os.P_NOWAIT
+        os.spawnv(mode, sys.executable, args)
 
 
 # main
