@@ -331,11 +331,14 @@ class Peers(unittest.TestCase):
         server = SocketOverUdp(Lossy(self.peer), (1, 2))
         client = SocketOverUdp(Lossy(self.remote), (2, 1))
         stop = threading.Event()
-        self.addCleanup(stop.set)
         def loop():
             while not stop.is_set():
                 self.pump()
-        threading.Thread(target=loop, daemon=True).start()
+        t = threading.Thread(target=loop, daemon=True)
+        t.start()
+        # stopped and waited for before the sockets are closed
+        self.addCleanup(t.join, 5.0)
+        self.addCleanup(stop.set)
         data_up = bytes(range(256)) * 200
         data_down = bytes(range(255, -1, -1)) * 200
         client.sendall(data_up)
@@ -568,6 +571,19 @@ class GameServerClient(unittest.TestCase):
         self.t.w.close()
         self.t.w = self.t.r         # (closed twice otherwise)
         self.c.input_handler()
+        self.assertIsNone(self.c.transport)
+        self.assertTrue(self.t.closed)
+        self.assertNotIn(self.c, gamesrv.clients)
+
+    def test_silent_stream_over_udp_disconnects(self):
+        # a stream over UDP reports a peer that is gone with
+        # check_silence(); a TCP stream has none
+        self.c.emit(b'', None)
+        self.assertIn(self.c, gamesrv.clients)
+        def silent():
+            raise socket.error("peer not responding, timing out")
+        self.t.check_silence = silent
+        self.c.emit(b'', None)
         self.assertIsNone(self.c.transport)
         self.assertTrue(self.t.closed)
         self.assertNotIn(self.c, gamesrv.clients)
