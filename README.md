@@ -25,6 +25,11 @@ Then run `bubbros`, or `bubbros-server` and `bubbros-client` without
 the browser. The Debian package leaves out what is not free: nonfree/
 and the three fan level files (see License below).
 
+To play with them, also install bubbros-nonfree-installer, from contrib.
+It downloads those files from this repository and checks them. It is
+in the queue for new packages now: https://ftp-master.debian.org/new.html ,
+packaging at https://salsa.debian.org/mendezr/bubbros-nonfree-installer .
+
 ## What you need to run it from this repository
 
 - Python 3.5+ (3.8+ for the tests).
@@ -123,8 +128,26 @@ tests/display/README.md):
   beta testers of IMA Connection.
 - Fan level sets: Wim De Gent (Arena), Michael S. Repton (The House of
   Fun) and Patrick Viney (Lost Levels).
-- Subgame music: Eric Matyas (www.soundimage.org), HydroGene, Cleyton
-  Kauffman, OwlishMedia and Jonathan Shaw (www.jshaw.co.uk).
+- Main game sounds and music: McSebi, from Bub & Bob 1.
+- Subgame music, free (bubbob/ext1 to ext7):
+  - ext1 "Arcade Puzzler" and ext2 "Caffeine Crazed Coin-Op Kids" by
+    Eric Matyas (www.soundimage.org), CC-BY 3.0
+  - ext3 "8-bit Epic Space Shooter Music" by HydroGene, CC0
+  - ext4 Korobeiniki, Russian folk song, 8-bit arrangement made by
+    tools/korobeiniki_chip.py, CC0
+  - ext5 "Children's March Theme" by Cleyton Kauffman, CC0
+  - ext6 "Race of the Wasp" by OwlishMedia, CC0
+  - ext7 "The Tread of War" by Jonathan Shaw (www.jshaw.co.uk), CC-BY 3.0
+- Subgame sound effects, free: made by tools/sfx_synth.py, CC0.
+- Original subgame music, in nonfree/:
+  - ext1 "Black Block" by DJComet (Arkanoid), ext2 "64-bit" by
+    Peterrian Productions (Pac-Man), ext3 "Galagzee" by zee-roh
+    (Galaga), ext4 "MkVaffQuasi Ultimix" by MkVaff (Tetris), ext5
+    "DABOMB" by alk (Lemmings): remixes from OverClocked ReMix
+    (https://ocremix.org)
+  - ext7: an arrangement of the title theme of Red Baron (Dynamix, 1990),
+    whose music is credited to Cayanie Music
+  - ext6 music and the original subgame sound effects: author unknown
 - Python 3 port: Christopher Bock, Alex Myczko, anzz1 and Juan Manuel
   Méndez Rey.
 - Debian packages: Siegfried-Angel Gevatter Pujals and Juhani Numminen
@@ -132,7 +155,7 @@ tests/display/README.md):
   Myczko).
 
 Sources for the game, graphics, levels and music credits are in
-PROVENANCE.md.
+PROVENANCE.md and nonfree/README.md.
 
 ## Contributing
 
