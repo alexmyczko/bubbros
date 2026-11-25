@@ -425,6 +425,9 @@ class Player:
 class Client:
   SEND_BOUND_PER_FRAME = 0x6000   # bytes
   MAX_PING_DELAY       = 2.4      # seconds
+  # the ping when no frame can be sent: the largest the message holds,
+  # the same on every architecture (sys.maxsize is 2**31-1 on 32-bit)
+  NEVER_SENT = (0x7FFFFFFF << 10) | 1023
 
   def __init__(self, conn, addr):
     # 'conn' is a Transport (see transport.py) or a connected socket
@@ -518,7 +521,7 @@ class Client:
         if self in broadcast_clients:
           self.msgl.append(message(MSG_PING, 0))
         elif self.udpsockcounter >= 1024:
-          # (the counter is sys.maxsize when the frames cannot be sent)
+          # (the counter is NEVER_SENT when the frames cannot be sent)
           self.msgl.append(message(MSG_PING,
                                    min(self.udpsockcounter>>10, 0x7FFFFFFF),
                                    self.udpsockcounter & 1023))
@@ -744,7 +747,7 @@ then use the following address:
         except error as e:
           print("Cannot set UDP socket to port", port, str(e), file=sys.stderr)
           self.sendframe = None
-          self.udpsockcounter = sys.maxsize
+          self.udpsockcounter = self.NEVER_SENT
         else:
           self.sendframe = self.transport.send_udp
           if self.proto >= 3:
