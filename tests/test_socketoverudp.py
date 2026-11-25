@@ -5,6 +5,7 @@ import os
 import socket
 import sys
 import threading
+import time
 import unittest
 from select import select
 
@@ -91,6 +92,33 @@ class TestSocketOverUdp(unittest.TestCase):
         client.sendall(b'^')
         client.flush()
         self.assertRaises(socket.error, client.recv)
+
+    def test_silent_peer_shows_in_check_silence(self):
+        # A peer that is gone sends nothing, so recv() is never called;
+        # select() calls fileno(), which must not fail, even after the
+        # congestion timeout, while check_silence() reports the peer.
+        a, b = udp_pair()
+        self.addCleanup(a.close)
+        self.addCleanup(b.close)
+        saved = (socketoverudp.SILENCE_TIMEOUT,
+                 socketoverudp.CONGESTION_TIMEOUT)
+        socketoverudp.SILENCE_TIMEOUT = 0.5
+        socketoverudp.CONGESTION_TIMEOUT = 0.2
+        def restore():
+            (socketoverudp.SILENCE_TIMEOUT,
+             socketoverudp.CONGESTION_TIMEOUT) = saved
+        self.addCleanup(restore)
+        server = SocketOverUdp(b, (2, 1))
+        server.check_silence()
+        server.pl.timeout = 0.05            # repeats come quickly
+        server.sendall(b'x' * 300000)       # more than it may send unanswered
+        server.flush()
+        deadline = time.time() + 1.0
+        while time.time() < deadline:
+            server.fileno()
+            time.sleep(0.01)
+        self.assertTrue(server.pl.is_congested())
+        self.assertRaises(socket.error, server.check_silence)
 
 
     def test_reserved_packets_are_dropped(self):

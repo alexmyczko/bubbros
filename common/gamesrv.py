@@ -469,6 +469,15 @@ class Client:
         self.msgl.append(message(MSG_PLAYER_JOIN, id, c is self))
 
   def emit(self, udpdata, broadcast_extras):
+    # a stream over UDP (see socketoverudp.py) does not notice by itself
+    # that its peer is gone
+    check_silence = getattr(self.transport, 'check_silence', None)
+    if check_silence is not None:
+      try:
+        check_silence()
+      except error as e:
+        self.disconnect(e, 'emit')
+        return
     if self.initialdata:
       self.send_buffer(self.initialdata)
     elif self.initialized == 2:

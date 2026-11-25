@@ -91,8 +91,19 @@ class SocketOverUdp(object):
                 #print ' ~~~[INVALID%d]' % (len(packet),)
                 return b''
 
+    def check_silence(self):
+        """Raise socket.error if nothing came from the peer for a while:
+        a peer that is gone sends nothing, so recv() is never called."""
+        if now() > self.last_received + SILENCE_TIMEOUT:
+            raise socket.error("peer not responding, timing out")
+
     def fileno(self):
-        self._progress()
+        # called by select(), which must not fail for one connection:
+        # a peer that stopped answering shows up in check_silence()
+        try:
+            self._progress()
+        except socket.error:
+            pass
         return self.udpsock.fileno()
 
     def flush(self):

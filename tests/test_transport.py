@@ -572,6 +572,19 @@ class GameServerClient(unittest.TestCase):
         self.assertTrue(self.t.closed)
         self.assertNotIn(self.c, gamesrv.clients)
 
+    def test_silent_stream_over_udp_disconnects(self):
+        # a stream over UDP reports a peer that is gone with
+        # check_silence(); a TCP stream has none
+        self.c.emit(b'', None)
+        self.assertIn(self.c, gamesrv.clients)
+        def silent():
+            raise socket.error("peer not responding, timing out")
+        self.t.check_silence = silent
+        self.c.emit(b'', None)
+        self.assertIsNone(self.c.transport)
+        self.assertTrue(self.t.closed)
+        self.assertNotIn(self.c, gamesrv.clients)
+
     def test_bad_messages_disconnect_only_that_client(self):
         bad = [message(CMSG_ADD_PLAYER, b'x'),           # not a player id
                message(CMSG_DATA_REQUEST, 9999, 0, 10),  # no such file
