@@ -110,6 +110,30 @@ tests/display/README.md):
 
     python3 tests/display/run.py
 
+## Credits
+
+- Sebastian Wegner (McSebi) made Bub & Bob 1 for the Mac (1997 to
+  2001). The sprites, sounds, music and levels of this game come from
+  it, and in 2005 he released them under a free licence.
+- Armin Rigo wrote The Bub's Brothers (2003 to 2005).
+- David Gowers redrew the graphics, based on McSebi's.
+- Gio, Odie (Olivier Dormond), Michel-Stéphane and Armin Rigo made the
+  levels in bubbob/levels/*.py.
+- The original authors also thanked Odie and Brachamutanda, and the
+  beta testers of IMA Connection.
+- Fan level sets: Wim De Gent (Arena), Michael S. Repton (The House of
+  Fun) and Patrick Viney (Lost Levels).
+- Subgame music: Eric Matyas (www.soundimage.org), HydroGene, Cleyton
+  Kauffman, OwlishMedia and Jonathan Shaw (www.jshaw.co.uk).
+- Python 3 port: Christopher Bock, Alex Myczko, anzz1 and Juan Manuel
+  Méndez Rey.
+- Debian packages: Siegfried-Angel Gevatter Pujals and Juhani Numminen
+  (1.6 to 1.6.2), Juan Manuel Méndez Rey (2.4, sponsored by Alex
+  Myczko).
+
+Sources for the game, graphics, levels and music credits are in
+PROVENANCE.md.
+
 ## Contributing
 
 Report bugs and send pull requests at
