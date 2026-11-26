@@ -163,7 +163,7 @@ def directconnect(sockaddr):
     from socket import socket, AF_INET, SOCK_STREAM
     s = socket(AF_INET, SOCK_STREAM)
     s.connect(sockaddr)
-    return s, sockaddr
+    return s, s.getpeername()
 
 def metaconnect(metaaddr):
     buildcolors()
