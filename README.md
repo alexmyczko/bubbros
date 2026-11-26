@@ -1,17 +1,37 @@
 ![bubbros](http2/header.png?raw=true "bubbros")
 
-# Bub n Bros
-Adopt from sf.net Bub n Bros for port to Python3
+# The Bub's Brothers
 
-Original: http://bub-n-bros.sourceforge.net
+A multiplayer game in the style of Bubble Bobble. Trap the monsters in
+bubbles, burst them and collect the items. Up to 10 players can play
+over the network. The game starts from a page in your web
+browser, where you can also join games on other computers.
 
-Matrix: https://matrix.to/#/%23bub-n-bros%3Amatrix.org
+The Bub's Brothers was written by Armin Rigo and others from 2003 to
+2005. The old Python 2 version, 1.6.2, is still on its first home page,
+https://bub-n-bros.sourceforge.net/ , and its project page,
+https://sourceforge.net/projects/bub-n-bros/ . This repository ports it
+to Python 3. The server, the clients and the meta-server still speak the
+network protocol of version 1.6.2, so old Python 2 clients and servers
+can play with the new ones.
 
-The game now runs on Python 3. The server, the clients and the
-metaserver use the same network protocol as version 1.6.2, so old
-Python 2 clients and servers can still play with the new ones.
+Chat: https://matrix.to/#/%23bub-n-bros%3Amatrix.org
 
-## What you need
+## Install on Debian
+
+The game is in Debian unstable (https://tracker.debian.org/pkg/bubbros):
+
+    sudo apt install bubbros
+
+Then run `bubbros`, or `bubbros-server` and `bubbros-client` without
+the browser. The Debian package leaves out what is not free: nonfree/
+and the three fan level files (see License below).
+
+To play with them, also install bubbros-nonfree-installer, from contrib.
+It downloads those files from this repository and checks them:
+https://tracker.debian.org/pkg/bubbros-nonfree-installer
+
+## What you need to run it from this repository
 
 - Python 3.5+ (3.8+ for the tests).
 - On Linux and other systems: pygame, for the client display and
@@ -96,8 +116,54 @@ tests/display/README.md):
 
     python3 tests/display/run.py
 
+## Credits
+
+- Sebastian Wegner (McSebi) made Bub & Bob 1 for the Mac (1997 to
+  2001). The sprites, sounds, music and levels of this game come from
+  it, and in 2005 he released them under a free licence.
+- Armin Rigo wrote The Bub's Brothers (2003 to 2005).
+- David Gowers redrew the graphics, based on McSebi's.
+- Gio, Odie (Olivier Dormond), Michel-Stéphane and Armin Rigo made the
+  levels in bubbob/levels/*.py.
+- The original authors also thanked Odie and Brachamutanda, and the
+  beta testers of IMA Connection.
+- Fan level sets: Wim De Gent (Arena), Michael S. Repton (The House of
+  Fun) and Patrick Viney (Lost Levels).
+- Music and sounds: McSebi (main game); Eric Matyas, HydroGene,
+  Cleyton Kauffman, OwlishMedia and Jonathan Shaw (free subgame music);
+  DJComet, Peterrian Productions, zee-roh, MkVaff and alk, remixes from
+  OverClocked ReMix, and an arrangement of the Red Baron theme (original
+  subgame music, in nonfree/). Each file, its licence and its source are
+  in PROVENANCE.md and nonfree/README.md.
+- Python 3 port: Christopher Bock, Alex Myczko, anzz1 and Juan Manuel
+  Méndez Rey.
+- Debian packages: Siegfried-Angel Gevatter Pujals and Juhani Numminen
+  (1.6 to 1.6.2), Juan Manuel Méndez Rey (2.4, sponsored by Alex
+  Myczko).
+
+Sources for the game, graphics, levels and music credits are in
+PROVENANCE.md and nonfree/README.md.
+
+## Contributing
+
+Report bugs and send pull requests at
+https://github.com/alexmyczko/bubbros . Please run the tests before you
+send a change.
+
 ## License
 
-The code is under the MIT license. The sounds, music and levels of the
-original Mac game are by Sebastian Wegner (McSebi), under the Artistic
-License 2.0. See LICENSE.txt.
+- The code is by Armin Rigo and others, under the MIT license.
+- The graphics are by David Gowers, based on McSebi's, under the
+  Artistic License 2.0.
+- Almost all sounds and music, and the levels in Levels.bin, come from
+  the Mac game Bub & Bob 1 by Sebastian Wegner (McSebi), under the
+  Artistic License 2.0.
+- The music and sounds of the subgames (bubbob/ext1 to ext7) are free
+  replacements, under CC-BY-3.0 or CC0-1.0. Authors and sources are in
+  PROVENANCE.md.
+- nonfree/ holds the original subgame sounds and some wall patterns.
+  They have no free licence, see nonfree/README.md.
+- The level files Arena.bin, HouseOfFun.bin and LostLevels.bin were made
+  by fans and have no licence yet, see RELICENSING-PERMISSIONS.md.
+
+Details: LICENSE.txt.
