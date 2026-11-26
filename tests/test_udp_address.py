@@ -136,14 +136,28 @@ class FallbackToTcp(unittest.TestCase):
 
     def test_nothing_received_from_a_slow_start(self):
         # whole kbytes: the first pings may say the same one, which says
-        # nothing (neither a strike nor a recovery)
+        # nothing, unless nothing came in at all, as here
         self.setUp(old=True)
         self.play(2.9, rate=0.5, lost=lambda t: True)
         pings = self.pf.udppings
         self.play(10, lost=lambda t: True)
         self.assertEqual(pings, 2)      # at 2.05 and 2.9 s: 1 kbyte each
-        # strikes at the 1st, 3rd and 4th ping
-        self.assertAlmostEqual(self.fallback, 5.2, delta=0.06)
+        # strikes at the 1st, 2nd and 3rd ping
+        self.assertAlmostEqual(self.fallback, 3.95, delta=0.06)
+
+    def test_server_cannot_send_frames(self):
+        # every ping says the same: the most the message holds, or for
+        # an older server on 32-bit, sys.maxsize; in whole kbytes from an
+        # old server
+        for values in ((0x7FFFFFFF, 1023), (0x7FFFFFFF,),
+                       ((2**31 - 1) >> 10, 1023)):
+            self.setUp()
+            for ping in range(1, 10):
+                with mock.patch('builtins.print'):
+                    self.pf.msg_ping(*values)
+                if self.fallback is not None:
+                    break
+            self.assertEqual(ping, 3, values)
 
     def test_blackout(self):
         for old in self.both():
