@@ -333,11 +333,16 @@ class Joysticks:
                     return
             offset = e.value - pad.rest.get(e.axis, 0.0)
             old = pad.axes.get(e.axis, 0)
+            if abs(offset) < AXIS_RELEASE:
+                pad.centred.add(e.axis)
             if old and abs(offset) < AXIS_RELEASE or old * offset < 0:
                 self.release(pad, pad.keysym(
                     JOY_AXIS_POS if old > 0 else JOY_AXIS_NEG, e.axis))
                 old = 0
-            if not old and abs(offset) > AXIS_PRESS:
+            # a stick let go springs back past its centre: the other
+            # direction is pressed only after the axis came back to rest
+            if not old and abs(offset) > AXIS_PRESS and e.axis in pad.centred:
+                pad.centred.discard(e.axis)
                 old = 1 if offset > 0 else -1
                 self.press(pad, pad.keysym(
                     JOY_AXIS_POS if old > 0 else JOY_AXIS_NEG, e.axis))
@@ -384,6 +389,7 @@ class Pad:
         # value says where it rests, if near the end of its range.
         self.rest = {}
         self.unknown = set()
+        self.centred = set(range(joystick.get_numaxes()))
         for axis in range(joystick.get_numaxes()):
             value = joystick.get_axis(axis)
             if abs(value) > AXIS_PRESS:
