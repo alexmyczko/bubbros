@@ -902,9 +902,12 @@ class Playfield:
             received = window[-1][1] - window[0][1]
             lastsent = window[-1][0] - window[-2][0]
             lastreceived = window[-1][1] - window[-2][1]
-            recovered = lastreceived >= lastsent * UDP_RECOVERED_RATIO
-            if lastsent <= 0:
-                pass        # nothing new sent: says nothing
+            recovered = (lastsent > 0 and
+                         lastreceived >= lastsent * UDP_RECOVERED_RATIO)
+            if lastsent <= 0 and received:
+                pass        # nothing new sent: says nothing, unless
+                            # nothing came in at all (as when the server
+                            # cannot send the frames)
             elif sent * UDP_EXPECTED_RATIO > received and not recovered:
                 # too many packets were dropped (including, maybe, all of them)
                 self.udpsock_low += 1

@@ -6,6 +6,9 @@ UDP_PORT     = 8056
 # This ping protocol is plain text: str here, encoded only at the socket.
 PING_MESSAGE = "pclient-game-ping"
 PONG_MESSAGE = "server-game-pong"
+# Cap the fields so pong answer never exceeds 200 bytes.
+DESCR_SIZE   = 120
+EXTRA_SIZE   = 32
 
 
 def serverside_ping(only_port=None):
@@ -31,8 +34,13 @@ def answer_ping(s, descr, addr, extra='', httpport=''):
         return
     if data == PING_MESSAGE.encode('ascii'):
         print("ping by", source, file=sys.stderr)
-        answer = '%s:%s:%s:%s:%s:%s' % (PONG_MESSAGE, descr,
-                                        addr[0], addr[1], extra, httpport)
+        descr = descr.replace(':', ' ').encode('utf-8')[:DESCR_SIZE]
+        extra = extra.replace(':', ' ').encode('utf-8')[:EXTRA_SIZE]
+        answer = '%s:%s:%s:%s:%s:%s' % (PONG_MESSAGE,
+                                        descr.decode('utf-8', 'ignore'),
+                                        addr[0], addr[1],
+                                        extra.decode('utf-8', 'ignore'),
+                                        httpport)
         s.sendto(answer.encode('utf-8'), source)
     else:
         print("unexpected data on UDP port %d by" % UDP_PORT, source, file=sys.stderr)
