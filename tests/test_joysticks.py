@@ -67,12 +67,14 @@ class TestAxes(unittest.TestCase):
         self.move(0, -0.3, -0.77, -1.0, -0.4, 0.0)
         self.assertEqual(self.keys, [('-0', True), ('-0', False)])
 
-    def test_stick_springs_back_past_the_centre(self):
+    def test_stick_springs_back_past_the_press_point(self):
         # an Xbox 360 pad on Linux, let go from full left: the first
-        # value after -1.0 was 0.586
+        # value after -1.0 was 0.586.  That counts as a press to the
+        # right, as a fast move from left to right would.
         self.plug([0.0, 0.0])
         self.move(0, -0.3, -0.77, -1.0, 0.586, 0.0)
-        self.assertEqual(self.keys, [('-0', True), ('-0', False)])
+        self.assertEqual(self.keys, [('-0', True), ('-0', False),
+                                     ('+0', True), ('+0', False)])
 
     def test_stick_left_then_right(self):
         self.plug([0.0, 0.0])
@@ -142,7 +144,8 @@ class TestVirtualPad(unittest.TestCase):
         os.write(fd, struct.pack('llHHi', 0, 0, EV_SYN, 0, 0))
         time.sleep(0.2)
 
-    def held_after_centre(self, stored):
+    def held_after(self, stored, first_report):
+        """The keys held after the first report (None: no report)."""
         fd = self.make_pad(stored)
         pygame.init()
         self.addCleanup(pygame.quit)
@@ -150,21 +153,30 @@ class TestVirtualPad(unittest.TestCase):
         pads = dpy_pygame.Joysticks(lambda k, e: keys.append(k))
         if not pads.pads:
             self.skipTest('SDL does not see the virtual pad')
-        self.report(fd, 128, 128)
+        if first_report is None:
+            time.sleep(0.2)
+        else:
+            self.report(fd, first_report, first_report)
         for e in pygame.event.get():
             if e.type in dpy_pygame.JOYSTICK_EVENTS:
                 pads.event(e)
         return [k for pad in pads.pads.values() for k in pad.held]
 
     def test_opened_at_centre(self):
-        self.assertEqual(self.held_after_centre(128), [])
+        self.assertEqual(self.held_after(128, 128), [])
+
+    def test_trigger_at_rest_opened_before_first_report(self):
+        # the axes rest at 0 of 0..255, -1.0 for SDL, and the pad has
+        # sent nothing yet.  pygame still delivers 0.0 then -1.0 for
+        # each axis after opening.
+        self.assertEqual(self.held_after(0, None), [])
 
     @unittest.expectedFailure
     def test_opened_before_first_report(self):
         # SDL gives -1.0 at open and Pad takes it as the rest, so the
         # centre presses right and down.  SDL itself corrects its rest
         # (has_second_value in SDL_joystick.c), Pad cannot see that.
-        self.assertEqual(self.held_after_centre(0), [])
+        self.assertEqual(self.held_after(0, 128), [])
 
 
 if __name__ == '__main__':
