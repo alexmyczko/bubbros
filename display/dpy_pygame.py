@@ -269,6 +269,8 @@ JOY_BUTTON, JOY_AXIS_NEG, JOY_AXIS_POS, JOY_HAT = range(4)
 AXIS_PRESS = 0.5            # from the axis' resting position
 AXIS_RELEASE = 0.3
 AXIS_REST = 0.9             # an axis that starts there rests there
+AXIS_END = 0.9999           # get_axis() is /32768, the events /32767
+AXIS_CENTER = 0.25          # first event in here: not resting at an end
 REPEAT_DELAY = 0.5          # as the keys, see pygame.key.set_repeat()
 REPEAT_INTERVAL = 0.77
 HAT_DIRECTIONS = ((-1, 0), (1, 0), (0, 1), (0, -1))   # left right up down
@@ -331,6 +333,8 @@ class Joysticks:
                 if abs(e.value) > AXIS_REST:
                     pad.rest[e.axis] = e.value      # a trigger, at rest
                     return
+                if abs(e.value) < AXIS_CENTER:
+                    pad.rest.pop(e.axis, None)
             offset = e.value - pad.rest.get(e.axis, 0.0)
             old = pad.axes.get(e.axis, 0)
             if old and abs(offset) < AXIS_RELEASE or old * offset < 0:
@@ -380,15 +384,15 @@ class Pad:
         self.axes = {}              # {axis: -1, 0 or 1}
         self.hats = {}              # {hat: (x, y)}
         # some axes rest away from 0: triggers often rest at -1.0.  An
-        # axis still at exactly 0.0 may not have reported yet: its first
-        # value says where it rests, if near the end of its range.
+        # axis at exactly 0.0 or at an end may not have reported yet:
+        # SDL's first event of an axis is where SDL has it resting.
         self.rest = {}
         self.unknown = set()
         for axis in range(joystick.get_numaxes()):
             value = joystick.get_axis(axis)
             if abs(value) > AXIS_PRESS:
                 self.rest[axis] = value
-            elif value == 0.0:
+            if value == 0.0 or abs(value) >= AXIS_END:
                 self.unknown.add(axis)
 
     def keysym(self, kind, number):
