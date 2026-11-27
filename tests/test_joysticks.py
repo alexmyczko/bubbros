@@ -165,17 +165,19 @@ class TestVirtualPad(unittest.TestCase):
     def test_opened_at_centre(self):
         self.assertEqual(self.held_after(128, 128), [])
 
+    @unittest.expectedFailure
     def test_trigger_at_rest_opened_before_first_report(self):
         # the axes rest at 0 of 0..255, -1.0 for SDL, and the pad has
         # sent nothing yet.  pygame still delivers 0.0 then -1.0 for
-        # each axis after opening.
+        # each axis after opening: Pad follows SDL and takes the first
+        # 0.0 as a stick at its centre, so the trigger holds its
+        # negative key.  The fault mode chosen, see
+        # https://github.com/alexmyczko/bubbros/pull/58
         self.assertEqual(self.held_after(0, None), [])
 
-    @unittest.expectedFailure
     def test_opened_before_first_report(self):
-        # SDL gives -1.0 at open and Pad takes it as the rest, so the
-        # centre presses right and down.  SDL itself corrects its rest
-        # (has_second_value in SDL_joystick.c), Pad cannot see that.
+        # SDL gives -1.0 at open; its first event, at the centre, gives
+        # the rest (has_second_value in SDL_joystick.c)
         self.assertEqual(self.held_after(0, 128), [])
 
 
